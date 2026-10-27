@@ -1,0 +1,59 @@
+set_put_out:
+  fields:
+    bin:
+      required: true
+      example: Recycling
+      selector:
+        text:
+    put_out:
+      default: true
+      selector:
+        boolean:
+
+move_collection:
+  fields:
+    bin:
+      required: true
+      example: Recycling
+      selector:
+        text:
+    original_date:
+      required: true
+      selector:
+        date:
+    new_date:
+      required: true
+      selector:
+        date:
+
+clear_moved:
+  fields:
+    bin:
+      required: true
+      example: Recycling
+      selector:
+        text:
+
+cancel_collection:
+  fields:
+    bin:
+      required: true
+      example: Recycling
+      selector:
+        text:
+    date:
+      required: true
+      selector:
+        date:
+
+restore_collection:
+  fields:
+    bin:
+      required: true
+      example: Recycling
+      selector:
+        text:
+    date:
+      required: true
+      selector:
+        date:

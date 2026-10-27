@@ -1,0 +1,30 @@
+Bins Out for Home Assistant
+Copyright (c) 2026 Techwood. All rights reserved.
+
+This software (the code, pictures, icon and documentation in this repository) belongs to
+Techwood.
+
+Permission to use
+  You may download, install and use this software on your own Home Assistant system for
+  personal, non-commercial use, but only if Techwood has given you permission (for example,
+  by sending you the link to this repository).
+
+Not allowed without Techwood's written permission
+  - copying the software, or any part of it, into other projects;
+  - changing it and sharing your changed version;
+  - sharing, publishing, selling or offering it to anyone else, including listing it in
+    HACS or any other store;
+  - removing this notice or claiming the software as your own work.
+
+How it was made
+  Bins Out was designed and directed by Techwood. Much of the code was written with AI
+  coding assistants (Anthropic's Claude and Google's Gemini) under Techwood's direction.
+
+No warranty
+  The software is provided "as is", without any warranty. Techwood is not responsible for
+  any missed bin collections, or any other loss or damage, from using it.
+
+Other people's software
+  Bins Out works alongside other integrations (for example Waste Collection Schedule and
+  Alexa Media Player). Those belong to their own authors and have their own licences.
+  This notice does not cover them.

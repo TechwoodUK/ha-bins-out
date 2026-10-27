@@ -1,0 +1,36 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly, to catch Home Assistant changes
+
+jobs:
+  hassfest:
+    name: Home Assistant checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # The icon ships in the integration's own brand/ folder (HA 2026.10+), not the brands repo.
+          ignore: brands license
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install pytest-homeassistant-custom-component==0.13.375 home-assistant-frontend==20260930.5
+      - run: python -m pytest -q

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+
+# Internal notes, not for the public repository
+master.md
+FRONTEND_CHANGES.md
+FRONTEND_CONTRACT.md
+custom_components/bins_out/frontend/demo.html
+
+# Never commit secrets
+ai
+.ha_token
+*.token
+.env
+
+# OS / editor
+.DS_Store
+.vscode/

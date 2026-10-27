@@ -1,0 +1,407 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Bins Out is already set up. Use Configure to add more bins."
+    },
+    "error": {
+      "name_taken": "You already have a bin with this name.",
+      "no_match": "No events on this calendar match that name.",
+      "no_events": "This calendar has no collections in the next 90 days. Check your council's address details in Waste Collection Schedule.",
+      "all_linked": "Every collection on this calendar already has a bin.",
+      "none_selected": "Tick at least one collection."
+    },
+    "step": {
+      "user": {
+        "title": "Bins Out",
+        "description": "When should you be reminded? You'll add your bins next.",
+        "data": {
+          "evening_time": "Evening reminder (night before)",
+          "morning_time": "Morning reminder (collection day)",
+          "collection_time": "Collection time (bins count as forgotten after this)"
+        }
+      },
+      "start": {
+        "title": "Your bins",
+        "description": "How should Bins Out know your collection days?\n\n**From my council (recommended):** your dates stay up to date by themselves, including bank holiday changes. This needs **Waste Collection Schedule**, a free integration you install from HACS, with your council and address added to it. Bins Out shows you how if it isn't set up yet.\n\n**Myself:** enter one collection date for each bin and how many weeks apart collections are. Nothing else to install.",
+        "menu_options": {
+          "council": "From my council (needs Waste Collection Schedule)",
+          "bin": "I'll add my bins myself"
+        }
+      },
+      "council_pick": {
+        "title": "Your council",
+        "description": "Pick your council from the councils you've added to Waste Collection Schedule.\n\n**Can't see your council?** This list only shows councils already added there. [Add my council]({add_council_url}), then come back to Bins Out → Configure → Add bins from my council.",
+        "data": {
+          "calendar_entity": "Your council (from Waste Collection Schedule)"
+        }
+      },
+      "council_install": {
+        "title": "Your council",
+        "description": "Bins Out gets your council's dates from **Waste Collection Schedule**, a free add-on that supports hundreds of councils. It isn't installed yet.\n\n1. [Open Waste Collection Schedule in HACS]({hacs_url}), download it, and restart Home Assistant.\n2. Add your council and address there. Many UK councils ask for your UPRN: [find yours]({uprn_url}).\n3. Come back here and choose **I've added my council**.",
+        "menu_options": {
+          "council": "I've added my council",
+          "bin": "Add a bin myself instead"
+        }
+      },
+      "council_add": {
+        "title": "Your council",
+        "description": "You haven't added a council to Waste Collection Schedule yet.\n\n1. [Add my council]({add_council_url}): choose your country, search for your council, and enter your address. Many UK councils ask for your UPRN: [find yours]({uprn_url}).\n2. Come back here and choose **I've added my council**.",
+        "menu_options": {
+          "council": "I've added my council",
+          "bin": "Add a bin myself instead"
+        }
+      },
+      "council_bins": {
+        "title": "Your collections",
+        "description": "These collections are on {calendar}. Tick the ones you have; each becomes a bin. Names and colours are a best guess: change them afterwards with Configure, Edit a bin.",
+        "data": {
+          "collections": "Collections"
+        }
+      },
+      "bin": {
+        "title": "Bin",
+        "description": "Name it, pick its colour and what kind of container it is, and choose where its collection dates come from.",
+        "data": {
+          "name": "Name",
+          "colour": "Colour",
+          "container": "Type of container",
+          "source": "Collection dates",
+          "repeat_weeks": "Usually collected every N weeks"
+        },
+        "data_description": {
+          "repeat_weeks": "Some councils only publish the next date. Bins Out uses this to show the weeks after it as estimates. Leave at 0 to let Bins Out work it out from the council's dates. Council dates always come first.",
+          "container": "Used for its picture on the dashboard and what Alexa calls it. Leave blank to guess from the name (\"Food\" is a caddy)."
+        }
+      },
+      "bin_manual": {
+        "title": "{name}: collection dates",
+        "description": "Pick any date this bin was or will be collected. Every other date is worked out from it.",
+        "data": {
+          "first_collection": "A collection date",
+          "interval_weeks": "Collected every N weeks"
+        }
+      },
+      "bin_calendar": {
+        "title": "{name}: calendar",
+        "description": "Choose the calendar with your council's collections, e.g. the one made by Waste Collection Schedule.",
+        "data": {
+          "calendar_entity": "Calendar"
+        }
+      },
+      "bin_match": {
+        "title": "{name}: which collections",
+        "description": "Pick the calendar event for this bin. Events on {calendar}: {found}. You can also type part of the name, e.g. \"grey\".",
+        "data": {
+          "match": "Event name",
+          "repeat_weeks": "Usually collected every N weeks"
+        },
+        "data_description": {
+          "repeat_weeks": "Some councils only publish the next date. Bins Out uses this to show the weeks after it as estimates. Leave at 0 to let Bins Out work it out from the council's dates. Council dates always come first."
+        }
+      },
+      "more": {
+        "title": "Bin added",
+        "menu_options": {
+          "bin": "Add another bin",
+          "council": "Add bins from my council (needs Waste Collection Schedule)",
+          "finish": "Finish"
+        }
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "name_taken": "You already have a bin with this name.",
+      "no_match": "No events on this calendar match that name.",
+      "no_events": "This calendar has no collections in the next 90 days. Check your council's address details in Waste Collection Schedule.",
+      "all_linked": "Every collection on this calendar already has a bin.",
+      "none_selected": "Tick at least one collection.",
+      "alexa_not_installed": "Alexa Media Player isn't installed yet. Install it from HACS (link above), restart, add it in Settings → Devices & services, then come back.",
+      "alexa_no_devices": "Pick at least one Echo device. None listed? Finish setting up Alexa Media Player in Settings → Devices & services.",
+      "alexa_test_failed": "The test announcement didn't work. Check Alexa Media Player is signed in (Settings → Devices & services → Alexa Media Player)."
+    },
+    "step": {
+      "init": {
+        "title": "Bins Out",
+        "menu_options": {
+          "settings": "Reminder times",
+          "alexa": "Alexa announcements",
+          "council": "Add bins from my council (needs Waste Collection Schedule)",
+          "bin": "Add a bin",
+          "edit_bin": "Edit a bin",
+          "remove_bin": "Remove a bin"
+        }
+      },
+      "settings": {
+        "title": "Reminder times",
+        "data": {
+          "evening_time": "Evening reminder (night before)",
+          "morning_time": "Morning reminder (collection day)",
+          "collection_time": "Collection time (bins count as forgotten after this)"
+        }
+      },
+      "edit_bin": {
+        "title": "Edit a bin",
+        "data": {
+          "selected_bin": "Bin"
+        }
+      },
+      "remove_bin": {
+        "title": "Remove a bin",
+        "data": {
+          "selected_bin": "Bin"
+        }
+      },
+      "council_pick": {
+        "title": "Your council",
+        "description": "Pick your council from the councils you've added to Waste Collection Schedule.\n\n**Can't see your council?** This list only shows councils already added there. [Add my council]({add_council_url}), then come back to Bins Out → Configure → Add bins from my council.",
+        "data": {
+          "calendar_entity": "Your council (from Waste Collection Schedule)"
+        }
+      },
+      "council_install": {
+        "title": "Your council",
+        "description": "Bins Out gets your council's dates from **Waste Collection Schedule**, a free add-on that supports hundreds of councils. It isn't installed yet.\n\n1. [Open Waste Collection Schedule in HACS]({hacs_url}), download it, and restart Home Assistant.\n2. Add your council and address there. Many UK councils ask for your UPRN: [find yours]({uprn_url}).\n3. Come back here and choose **I've added my council**.",
+        "menu_options": {
+          "council": "I've added my council",
+          "bin": "Add a bin myself instead"
+        }
+      },
+      "council_add": {
+        "title": "Your council",
+        "description": "You haven't added a council to Waste Collection Schedule yet.\n\n1. [Add my council]({add_council_url}): choose your country, search for your council, and enter your address. Many UK councils ask for your UPRN: [find yours]({uprn_url}).\n2. Come back here and choose **I've added my council**.",
+        "menu_options": {
+          "council": "I've added my council",
+          "bin": "Add a bin myself instead"
+        }
+      },
+      "council_bins": {
+        "title": "Your collections",
+        "description": "These collections on {calendar} don't have a bin yet. Tick the ones you have; each becomes a bin. Names and colours are a best guess: change them afterwards with Edit a bin.",
+        "data": {
+          "collections": "Collections"
+        }
+      },
+      "bin": {
+        "title": "Bin",
+        "description": "Name it, pick its colour and what kind of container it is, and choose where its collection dates come from.",
+        "data": {
+          "name": "Name",
+          "colour": "Colour",
+          "container": "Type of container",
+          "source": "Collection dates",
+          "repeat_weeks": "Usually collected every N weeks"
+        },
+        "data_description": {
+          "repeat_weeks": "Some councils only publish the next date. Bins Out uses this to show the weeks after it as estimates. Leave at 0 to let Bins Out work it out from the council's dates. Council dates always come first.",
+          "container": "Used for its picture on the dashboard and what Alexa calls it. Leave blank to guess from the name (\"Food\" is a caddy)."
+        }
+      },
+      "bin_manual": {
+        "title": "{name}: collection dates",
+        "description": "Pick any date this bin was or will be collected. Every other date is worked out from it.",
+        "data": {
+          "first_collection": "A collection date",
+          "interval_weeks": "Collected every N weeks"
+        }
+      },
+      "bin_calendar": {
+        "title": "{name}: calendar",
+        "description": "Choose the calendar with your council's collections, e.g. the one made by Waste Collection Schedule.",
+        "data": {
+          "calendar_entity": "Calendar"
+        }
+      },
+      "bin_match": {
+        "title": "{name}: which collections",
+        "description": "Pick the calendar event for this bin. Events on {calendar}: {found}. You can also type part of the name, e.g. \"grey\".",
+        "data": {
+          "match": "Event name",
+          "repeat_weeks": "Usually collected every N weeks"
+        },
+        "data_description": {
+          "repeat_weeks": "Some councils only publish the next date. Bins Out uses this to show the weeks after it as estimates. Leave at 0 to let Bins Out work it out from the council's dates. Council dates always come first."
+        }
+      },
+      "alexa": {
+        "title": "Alexa announcements",
+        "description": "Have Alexa say your reminders out loud, e.g. \"put the grey recycling bin out tonight\". On an Echo Show the words also appear on the screen.\n\nThis needs **Alexa Media Player**, a free integration: [get it from HACS]({alexa_hacs_url}), restart Home Assistant, then add it in Settings → Devices & services and sign in to Amazon. Your Echo devices then appear in the list below.",
+        "data": {
+          "alexa_enabled": "Announce reminders on Alexa",
+          "alexa_devices": "Echo devices",
+          "alexa_mode": "How Alexa says it",
+          "alexa_reminders": "Which reminders",
+          "alexa_test": "Send a test announcement when I save"
+        },
+        "data_description": {
+          "alexa_test": "Alexa says \"This is Bins Out. Your bin reminders will be announced here.\" so you can check it works."
+        }
+      }
+    }
+  },
+  "issues": {
+    "calendar_missing": {
+      "title": "Bins Out can't find your council calendar",
+      "description": "The council calendar {calendar} has gone, so these bins can't get new collection dates: {bins}. Until it's fixed they keep their last known dates, which will soon run out.\n\nThis usually means your council was removed from Waste Collection Schedule. To fix it, either:\n\n- add your council to Waste Collection Schedule again (Settings → Devices & services → Add integration → Waste Collection Schedule), then open Bins Out → Configure → Edit a bin and pick the new calendar for each bin; or\n- remove those bins in Bins Out → Configure → Remove a bin.\n\nThis notice goes away by itself once the bins have a calendar again."
+    }
+  },
+  "selector": {
+    "colour": {
+      "options": {
+        "black": "Black",
+        "grey": "Grey",
+        "blue": "Blue",
+        "green": "Green",
+        "brown": "Brown",
+        "purple": "Purple",
+        "red": "Red",
+        "maroon": "Maroon",
+        "yellow": "Yellow",
+        "orange": "Orange",
+        "white": "White"
+      }
+    },
+    "source": {
+      "options": {
+        "manual": "Every few weeks from a date I know",
+        "calendar": "From a calendar (council or Waste Collection Schedule)"
+      }
+    },
+    "alexa_mode": {
+      "options": {
+        "announce": "Announce (chime first)",
+        "tts": "Just speak"
+      }
+    },
+    "alexa_reminders": {
+      "options": {
+        "evening": "Night before",
+        "morning": "Morning of collection",
+        "forgotten": "Bin forgotten"
+      }
+    },
+    "container": {
+      "options": {
+        "wheelie_bin": "Wheelie bin",
+        "food_caddy": "Food caddy",
+        "box": "Recycling box",
+        "bag": "Bag or sack"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "summary": {
+        "name": "Next collection"
+      },
+      "next_collection": {
+        "name": "Next collection"
+      },
+      "days_until": {
+        "name": "Days until collection"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "upcoming": "Upcoming",
+          "tomorrow": "Put out tonight",
+          "today": "Put out now",
+          "out": "Out",
+          "forgotten": "Forgotten",
+          "collected": "Collected, bring in",
+          "none": "No collections"
+        }
+      }
+    },
+    "binary_sensor": {
+      "due": {
+        "name": "Needs to go out"
+      },
+      "forgotten": {
+        "name": "Forgotten"
+      }
+    },
+    "switch": {
+      "put_out": {
+        "name": "Put out"
+      }
+    },
+    "calendar": {
+      "collections": {
+        "name": "Collections"
+      }
+    }
+  },
+  "services": {
+    "set_put_out": {
+      "name": "Set put out",
+      "description": "Mark a bin as put out (or not) for its next collection.",
+      "fields": {
+        "bin": {
+          "name": "Bin",
+          "description": "Bin name or id."
+        },
+        "put_out": {
+          "name": "Put out",
+          "description": "True when the bin is at the kerb."
+        }
+      }
+    },
+    "move_collection": {
+      "name": "Move collection",
+      "description": "One-off change, e.g. a bank holiday. Moves one collection to another date.",
+      "fields": {
+        "bin": {
+          "name": "Bin",
+          "description": "Bin name or id."
+        },
+        "original_date": {
+          "name": "Original date",
+          "description": "The normal collection date."
+        },
+        "new_date": {
+          "name": "New date",
+          "description": "The date it will actually be collected."
+        }
+      }
+    },
+    "clear_moved": {
+      "name": "Clear moved collections",
+      "description": "Remove all one-off moves for a bin.",
+      "fields": {
+        "bin": {
+          "name": "Bin",
+          "description": "Bin name or id."
+        }
+      }
+    },
+    "cancel_collection": {
+      "name": "Cancel collection",
+      "description": "Mark one collection as not happening. No reminders are sent for it.",
+      "fields": {
+        "bin": {
+          "name": "Bin",
+          "description": "Bin name or id."
+        },
+        "date": {
+          "name": "Date",
+          "description": "The collection date to cancel."
+        }
+      }
+    },
+    "restore_collection": {
+      "name": "Restore collection",
+      "description": "Undo a cancelled collection.",
+      "fields": {
+        "bin": {
+          "name": "Bin",
+          "description": "Bin name or id."
+        },
+        "date": {
+          "name": "Date",
+          "description": "The cancelled date to restore."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+blueprint:
+  name: Bins Out - Alexa reminders
+  description: >-
+    Announce bin reminders on Alexa devices the night before and on the morning
+    of collection, and (optionally) warn when a bin was forgotten.
+    Requires the Alexa Media Player custom integration (HACS).
+  domain: automation
+  source_url: https://github.com/TechwoodUK/ha-bins-out/blob/main/blueprints/automation/bins_out/alexa_bin_reminders.yaml
+  input:
+    echo_devices:
+      name: Alexa devices
+      selector:
+        entity:
+          integration: alexa_media
+          domain: media_player
+          multiple: true
+    mode:
+      name: How to speak
+      description: "announce plays a chime first; tts just speaks."
+      default: announce
+      selector:
+        select:
+          options:
+            - announce
+            - tts
+    reminders:
+      name: Which reminders
+      default: [evening, morning, forgotten]
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Night before
+              value: evening
+            - label: Morning of collection
+              value: morning
+            - label: Bin forgotten
+              value: forgotten
+    phone_notify:
+      name: Also notify phone (optional)
+      description: "A notify action such as notify.mobile_app_my_phone. Leave blank to skip."
+      default: ""
+      selector:
+        text:
+
+mode: queued
+
+trigger:
+  - trigger: event
+    event_type: bins_out_reminder
+
+variables:
+  reminders: !input reminders
+  phone_notify: !input phone_notify
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.event.data.type in reminders }}"
+
+action:
+  - action: notify.alexa_media
+    data:
+      target: !input echo_devices
+      message: "{{ trigger.event.data.message }}"
+      data:
+        type: !input mode
+  - if:
+      - condition: template
+        value_template: "{{ phone_notify | length > 0 }}"
+    then:
+      - action: "{{ phone_notify }}"
+        data:
+          title: Bins
+          message: "{{ trigger.event.data.message }}"

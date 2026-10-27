@@ -1,0 +1,22 @@
+{
+  "domain": "bins_out",
+  "name": "Bins Out",
+  "after_dependencies": [
+    "frontend",
+    "lovelace"
+  ],
+  "codeowners": [
+    "@TechwoodUK"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http"
+  ],
+  "documentation": "https://github.com/TechwoodUK/ha-bins-out",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/TechwoodUK/ha-bins-out/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.2"
+}
