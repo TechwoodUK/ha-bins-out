@@ -118,7 +118,8 @@
       "none_selected": "Tick at least one collection.",
       "alexa_not_installed": "Alexa Media Player isn't installed yet. Install it from HACS (link above), restart, add it in Settings → Devices & services, then come back.",
       "alexa_no_devices": "Pick at least one Echo device. None listed? Finish setting up Alexa Media Player in Settings → Devices & services.",
-      "alexa_test_failed": "The test announcement didn't work. Check Alexa Media Player is signed in (Settings → Devices & services → Alexa Media Player)."
+      "alexa_test_failed": "The test announcement didn't work. Check Alexa Media Player is signed in (Settings → Devices & services → Alexa Media Player).",
+      "alexa_off": "Switch on Alexa announcements and pick your Echo devices first (Configure → Alexa announcements)."
     },
     "step": {
       "init": {
@@ -126,6 +127,7 @@
         "menu_options": {
           "settings": "Reminder times",
           "alexa": "Alexa announcements",
+          "messages": "Reminder messages",
           "council": "Add bins from my council (needs Waste Collection Schedule)",
           "bin": "Add a bin",
           "edit_bin": "Edit a bin",
@@ -235,6 +237,19 @@
         },
         "data_description": {
           "alexa_test": "Alexa says \"This is Bins Out. Your bin reminders will be announced here.\" so you can check it works."
+        }
+      },
+      "messages": {
+        "title": "Reminder messages",
+        "description": "Choose what the reminders say, on Alexa and in notifications.\n\n**{bins}** is replaced by the bins' names, e.g. *the blue bin and the grey food caddy*. **{was}** becomes *was* or *were* to match. Clear a box to go back to the standard wording.",
+        "data": {
+          "message_evening": "Evening before",
+          "message_morning": "Collection morning",
+          "message_forgotten": "Forgotten",
+          "message_try": "Say the evening message on Alexa when I save"
+        },
+        "data_description": {
+          "message_try": "Alexa says it with your own bins' names, so you can hear how it sounds."
         }
       }
     }

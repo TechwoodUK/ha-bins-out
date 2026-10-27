@@ -294,20 +294,10 @@ def join_names(names: list[str]) -> str:
     return f"{', '.join(parts[:-1])} and {parts[-1]}"
 
 
-def evening_message(names: list[str]) -> str | None:
+def reminder_message(template: str, names: list[str]) -> str | None:
+    """Fill in a reminder's wording (see DEFAULT_MESSAGES). None if there are no bins."""
     if not names:
         return None
-    return f"Reminder: put {join_names(names)} out tonight. Collection is tomorrow."
-
-
-def morning_message(names: list[str]) -> str | None:
-    if not names:
-        return None
-    return f"It's bin day! Put {join_names(names)} out now."
-
-
-def forgotten_message(names: list[str]) -> str | None:
-    if not names:
-        return None
-    verb = "were" if len(names) > 1 else "was"
-    return f"Looks like {join_names(names)} {verb} not put out for collection today."
+    return template.replace("{bins}", join_names(names)).replace(
+        "{was}", "were" if len(names) > 1 else "was"
+    )

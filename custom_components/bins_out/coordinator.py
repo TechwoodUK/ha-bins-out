@@ -34,12 +34,14 @@ from .const import (
     CONF_FIRST_COLLECTION,
     CONF_INTERVAL_WEEKS,
     CONF_MATCH,
+    CONF_MESSAGES,
     CONF_MORNING_TIME,
     CONF_REPEAT_WEEKS,
     CONF_SOURCE,
     CONTAINER_NOUNS,
     DEFAULT_COLLECTION_TIME,
     DEFAULT_EVENING_TIME,
+    DEFAULT_MESSAGES,
     DEFAULT_MORNING_TIME,
     DOMAIN,
     EVENT_REMINDER,
@@ -56,12 +58,10 @@ from .schedule import (
     BinState,
     compute_state,
     dates_from_events,
-    evening_message,
-    forgotten_message,
     guess_container,
     guess_repeat_weeks,
     learn_repeat_weeks,
-    morning_message,
+    reminder_message,
     spoken_name,
     usual_weekday,
 )
@@ -353,18 +353,26 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
         data = self.data or {}
         return [self.spoken_name(b) for b, s in data.items() if predicate(s)]
 
+    def message_template(self, kind: str) -> str:
+        """A reminder's wording: your own from Configure, or the default."""
+        return self.config_entry.options.get(CONF_MESSAGES[kind]) or DEFAULT_MESSAGES[kind]
+
     def tonight_message(self) -> str | None:
-        return evening_message(
-            self.bins_where(lambda s: s.days_until == 1 and not s.put_out)
+        return reminder_message(
+            self.message_template(REMINDER_EVENING),
+            self.bins_where(lambda s: s.days_until == 1 and not s.put_out),
         )
 
     def morning_message(self) -> str | None:
-        return morning_message(
-            self.bins_where(lambda s: s.days_until == 0 and not s.put_out)
+        return reminder_message(
+            self.message_template(REMINDER_MORNING),
+            self.bins_where(lambda s: s.days_until == 0 and not s.put_out),
         )
 
     def forgotten_message(self) -> str | None:
-        return forgotten_message(self.bins_where(lambda s: s.forgotten))
+        return reminder_message(
+            self.message_template(REMINDER_FORGOTTEN), self.bins_where(lambda s: s.forgotten)
+        )
 
     @callback
     def _announce_on_alexa(self, kind: str, message: str) -> None:

@@ -34,20 +34,23 @@ from .const import (
     CONF_FIRST_COLLECTION,
     CONF_INTERVAL_WEEKS,
     CONF_MATCH,
+    CONF_MESSAGES,
     CONF_MORNING_TIME,
     CONF_REPEAT_WEEKS,
     CONF_SOURCE,
     CONTAINER_NOUNS,
     DEFAULT_COLLECTION_TIME,
     DEFAULT_EVENING_TIME,
+    DEFAULT_MESSAGES,
     DEFAULT_MORNING_TIME,
     DOMAIN,
+    REMINDER_EVENING,
     REMINDERS,
     SOURCE_CALENDAR,
     SOURCE_MANUAL,
 )
 from .coordinator import async_calendar_events
-from .schedule import dates_from_events, guess_colour
+from .schedule import dates_from_events, guess_colour, reminder_message
 
 CONF_SELECTED_BIN = "selected_bin"
 CONF_COLLECTIONS = "collections"
@@ -69,6 +72,7 @@ ALEXA_LINKS = {
     ),
 }
 CONF_ALEXA_TEST = "alexa_test"  # not saved: send a test announcement on save
+CONF_MESSAGE_TRY = "message_try"  # not saved: say the evening reminder on Alexa on save
 ALEXA_TEST_MESSAGE = "This is Bins Out. Your bin reminders will be announced here."
 
 
@@ -514,7 +518,7 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
         )
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        menu = ["settings", "alexa", "council", "bin"]
+        menu = ["settings", "alexa", "messages", "council", "bin"]
         if self._existing_bins():
             menu += ["edit_bin", "remove_bin"]
         return self.async_show_menu(step_id="init", menu_options=menu)
@@ -593,6 +597,61 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
             data_schema=schema,
             errors=errors,
             description_placeholders=ALEXA_LINKS,
+        )
+
+    async def async_step_messages(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Your own wording for each reminder."""
+        errors: dict[str, str] = {}
+        opts = self.config_entry.options
+        if user_input is not None:
+            # An empty box, or the default wording, is saved as "not set".
+            custom = {
+                key: text
+                for kind, key in CONF_MESSAGES.items()
+                if (text := (user_input.get(key) or "").strip())
+                and text != DEFAULT_MESSAGES[kind]
+            }
+            if user_input.get(CONF_MESSAGE_TRY):
+                devices = opts.get(CONF_ALEXA_DEVICES) or []
+                if not (opts.get(CONF_ALEXA_ENABLED) and devices):
+                    errors["base"] = "alexa_off"
+                else:
+                    coordinator = self.config_entry.runtime_data
+                    template = custom.get(CONF_MESSAGES[REMINDER_EVENING]) or DEFAULT_MESSAGES[
+                        REMINDER_EVENING
+                    ]
+                    names = [coordinator.spoken_name(b) for b in list(coordinator.bins)[:2]]
+                    example = reminder_message(template, names or ["blue bin"])
+                    if not await coordinator.async_announce(
+                        example, devices, opts.get(CONF_ALEXA_MODE, "announce")
+                    ):
+                        errors["base"] = "alexa_test_failed"
+            if not errors:
+                kept = {k: v for k, v in opts.items() if k not in CONF_MESSAGES.values()}
+                return self.async_create_entry(data={**kept, **custom})
+        current = user_input or opts
+        schema = vol.Schema(
+            {
+                **{
+                    vol.Optional(
+                        key,
+                        description={
+                            "suggested_value": current.get(key) or DEFAULT_MESSAGES[kind]
+                        },
+                    ): selector.TextSelector(selector.TextSelectorConfig(multiline=True))
+                    for kind, key in CONF_MESSAGES.items()
+                },
+                vol.Optional(CONF_MESSAGE_TRY, default=False): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="messages",
+            data_schema=schema,
+            errors=errors,
+            # Shown as-is, so the description can mention them.
+            description_placeholders={"bins": "{bins}", "was": "{was}"},
         )
 
     async def async_step_edit_bin(

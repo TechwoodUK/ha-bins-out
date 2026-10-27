@@ -154,6 +154,11 @@ choose *Announce* (chime first) or *Just speak* and which reminders to say, and 
 **Send a test announcement** to check it works. On an Echo Show the words also appear on screen.
 Switch it off again any time from the same screen.
 
+**Your own wording:** Bins Out → **Configure** → **Reminder messages**. Write what each reminder
+should say; `{bins}` is replaced by the bins' names (e.g. *the blue bin and the grey food caddy*)
+and `{was}` by *was* or *were*. Tick **Say the evening message on Alexa** to hear it. Clear a box
+to go back to the standard wording. Your wording is used on Alexa and in the `bins_out_reminder` event.
+
 For more control (e.g. also notify a phone, or only on some days) use the blueprint
 `blueprints/automation/bins_out/alexa_bin_reminders.yaml` instead (copy it to
 `config/blueprints/automation/bins_out/` and create an automation from it). Use one or the other,

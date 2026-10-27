@@ -2,16 +2,16 @@
 
 from datetime import date, datetime, time, timedelta
 
+from custom_components.bins_out.const import DEFAULT_MESSAGES
 from custom_components.bins_out.schedule import (
     BinSchedule,
     compute_state,
     dates_from_events,
-    evening_message,
-    forgotten_message,
     guess_colour,
     guess_container,
     guess_repeat_weeks,
     learn_repeat_weeks,
+    reminder_message,
     spoken_name,
     usual_weekday,
 )
@@ -89,14 +89,21 @@ def test_put_out():
 def test_messages():
     assert spoken_name("Recycling", "blue") == "blue recycling bin"
     assert spoken_name("Black bin", "black") == "black bin"
-    assert evening_message([]) is None
-    assert evening_message(["blue recycling bin", "green garden bin"]) == (
+    assert reminder_message(DEFAULT_MESSAGES["evening"], []) is None
+    assert reminder_message(
+        DEFAULT_MESSAGES["evening"], ["blue recycling bin", "green garden bin"]
+    ) == (
         "Reminder: put the blue recycling bin and the green garden bin out tonight. "
         "Collection is tomorrow."
     )
-    assert forgotten_message(["black bin"]) == (
+    assert reminder_message(DEFAULT_MESSAGES["forgotten"], ["black bin"]) == (
         "Looks like the black bin was not put out for collection today."
     )
+    assert reminder_message(DEFAULT_MESSAGES["forgotten"], ["black bin", "blue bin"]) == (
+        "Looks like the black bin and the blue bin were not put out for collection today."
+    )
+    # Your own wording; stray braces are left alone.
+    assert reminder_message("Oi! {bins} {x} out!", ["blue bin"]) == "Oi! the blue bin {x} out!"
 
 
 def test_cancelled_regular_collection():

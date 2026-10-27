@@ -906,3 +906,67 @@ async def test_container_type(hass: HomeAssistant, entry: MockConfigEntry) -> No
     rec = next(b for b in summary["bins"] if b["name"] == "Recycling")
     assert rec["container"] == "box"
     assert rec["spoken_name"] == "blue recycling box"
+
+
+async def _messages_form(hass: HomeAssistant, entry: MockConfigEntry) -> dict:
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert "messages" in result["menu_options"]
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "messages"}
+    )
+
+
+def _suggested(result: dict, key: str) -> str:
+    field = next(k for k in result["data_schema"].schema if k == key)
+    return field.description["suggested_value"]
+
+
+async def test_own_reminder_messages(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    mock_integration(hass, MockModule("alexa_media"))
+    calls = async_mock_service(hass, "notify", "alexa_media")
+    events = async_capture_events(hass, EVENT_REMINDER)
+
+    # The boxes start with the standard wording, so there's something to edit.
+    result = await _messages_form(hass, entry)
+    assert _suggested(result, "message_evening").startswith("Reminder: put {bins} out tonight")
+
+    # Hearing it on Alexa needs Alexa switched on first.
+    mine = {"message_evening": "Oi! Take {bins} out, it goes tomorrow.",
+            "message_morning": "It's bin day! Put {bins} out now.",
+            "message_forgotten": ""}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**mine, "message_try": True}
+    )
+    assert result["errors"] == {"base": "alexa_off"}
+    assert _suggested(result, "message_evening") == mine["message_evening"]
+    assert calls == []
+
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, **ALEXA, "alexa_enabled": True,
+                        "alexa_devices": ["media_player.kitchen"]}
+    )
+    await hass.async_block_till_done()
+    result = await _messages_form(hass, entry)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**mine, "message_try": True}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # Said with your own bins' names.
+    assert calls[0].data["message"] == (
+        "Oi! Take the blue recycling bin and the black general bin out, it goes tomorrow."
+    )
+    # Only real changes are saved: unchanged and empty boxes keep the standard wording.
+    assert entry.options["message_evening"] == mine["message_evening"]
+    assert "message_morning" not in entry.options
+    assert "message_forgotten" not in entry.options
+    assert "message_try" not in entry.options
+    await hass.async_block_till_done()
+
+    # 19:00 the night before: your wording, on Alexa and in the event.
+    freezer.move_to(local(2026, 10, 26, 19, 0, 0))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert events[-1].data["message"] == "Oi! Take the blue recycling bin out, it goes tomorrow."
+    assert calls[-1].data["message"] == "Oi! Take the blue recycling bin out, it goes tomorrow."

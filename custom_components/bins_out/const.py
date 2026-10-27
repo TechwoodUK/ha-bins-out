@@ -94,6 +94,15 @@ REMINDER_EVENING = "evening"
 REMINDER_MORNING = "morning"
 REMINDER_FORGOTTEN = "forgotten"
 REMINDERS = [REMINDER_EVENING, REMINDER_MORNING, REMINDER_FORGOTTEN]
+# What each reminder says. {bins} becomes e.g. "the blue bin and the grey food caddy";
+# {was} becomes "was" or "were" to match.
+DEFAULT_MESSAGES = {
+    REMINDER_EVENING: "Reminder: put {bins} out tonight. Collection is tomorrow.",
+    REMINDER_MORNING: "It's bin day! Put {bins} out now.",
+    REMINDER_FORGOTTEN: "Looks like {bins} {was} not put out for collection today.",
+}
+# Configure → Reminder messages: your own wording, per reminder. Not set means the default.
+CONF_MESSAGES = {kind: f"message_{kind}" for kind in REMINDERS}
 
 SERVICE_SET_PUT_OUT = "set_put_out"
 SERVICE_MOVE_COLLECTION = "move_collection"
