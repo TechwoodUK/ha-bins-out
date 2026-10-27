@@ -466,7 +466,7 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             "importance": "high",
             "priority": "high",
             "ttl": 0,
-            "vibrationPattern": "100, 400, 100, 400",
+            "vibrationPattern": "0, 600, 300, 600, 300, 600",  # three firm buzzes
             # iPhone: sound and vibration, even in a Focus that allows time-sensitive alerts.
             "push": {"sound": "default", "interruption-level": "time-sensitive"},
         }
