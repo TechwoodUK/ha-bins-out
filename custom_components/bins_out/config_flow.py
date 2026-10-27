@@ -36,6 +36,9 @@ from .const import (
     CONF_MATCH,
     CONF_MESSAGES,
     CONF_MORNING_TIME,
+    CONF_PHONE_DEVICES,
+    CONF_PHONE_ENABLED,
+    CONF_PHONE_REMINDERS,
     CONF_REPEAT_WEEKS,
     CONF_SOURCE,
     CONTAINER_NOUNS,
@@ -44,6 +47,7 @@ from .const import (
     DEFAULT_MESSAGES,
     DEFAULT_MORNING_TIME,
     DOMAIN,
+    MOBILE_APP_DOMAIN,
     REMINDER_EVENING,
     REMINDERS,
     SOURCE_CALENDAR,
@@ -72,6 +76,8 @@ ALEXA_LINKS = {
     ),
 }
 CONF_ALEXA_TEST = "alexa_test"  # not saved: send a test announcement on save
+CONF_PHONE_TEST = "phone_test"  # not saved: send a test notification on save
+PHONE_TEST_MESSAGE = "This is Bins Out. Your bin reminders will pop up here."
 CONF_MESSAGE_TRY = "message_try"  # not saved: say the evening reminder on Alexa on save
 ALEXA_TEST_MESSAGE = "This is Bins Out. Your bin reminders will be announced here."
 
@@ -518,7 +524,7 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
         )
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        menu = ["settings", "alexa", "messages", "council", "bin"]
+        menu = ["settings", "alexa", "phones", "messages", "council", "bin"]
         if self._existing_bins():
             menu += ["edit_bin", "remove_bin"]
         return self.async_show_menu(step_id="init", menu_options=menu)
@@ -597,6 +603,53 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
             data_schema=schema,
             errors=errors,
             description_placeholders=ALEXA_LINKS,
+        )
+
+    async def async_step_phones(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pop the reminders up on phones with the Home Assistant app."""
+        errors: dict[str, str] = {}
+        current = {**self.config_entry.options, **(user_input or {})}
+        if user_input is not None:
+            settings = {k: v for k, v in user_input.items() if k != CONF_PHONE_TEST}
+            coordinator = self.config_entry.runtime_data
+            services = coordinator.phone_services(settings.get(CONF_PHONE_DEVICES) or [])
+            if (settings[CONF_PHONE_ENABLED] or user_input.get(CONF_PHONE_TEST)) and not services:
+                errors[CONF_PHONE_DEVICES] = "phone_none"
+            if not errors and user_input.get(CONF_PHONE_TEST):
+                if not await coordinator.async_notify_phones(PHONE_TEST_MESSAGE, services):
+                    errors["base"] = "phone_test_failed"
+            if not errors:
+                return self._save(**settings)
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_PHONE_ENABLED, default=current.get(CONF_PHONE_ENABLED, False)
+                ): selector.BooleanSelector(),
+                vol.Optional(
+                    CONF_PHONE_DEVICES, default=current.get(CONF_PHONE_DEVICES, [])
+                ): selector.DeviceSelector(
+                    selector.DeviceSelectorConfig(integration=MOBILE_APP_DOMAIN, multiple=True)
+                ),
+                vol.Required(
+                    CONF_PHONE_REMINDERS, default=current.get(CONF_PHONE_REMINDERS, REMINDERS)
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=REMINDERS,
+                        translation_key="phone_reminders",
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
+                vol.Optional(CONF_PHONE_TEST, default=False): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="phones",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"app_url": "https://companion.home-assistant.io/"},
         )
 
     async def async_step_messages(

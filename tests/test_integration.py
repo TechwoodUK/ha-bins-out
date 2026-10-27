@@ -21,7 +21,7 @@ from homeassistant.config_entries import SOURCE_USER
 from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
@@ -970,3 +970,65 @@ async def test_own_reminder_messages(
     await hass.async_block_till_done()
     assert events[-1].data["message"] == "Oi! Take the blue recycling bin out, it goes tomorrow."
     assert calls[-1].data["message"] == "Oi! Take the blue recycling bin out, it goes tomorrow."
+
+
+async def test_phone_notifications(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    # A phone with the Home Assistant app.
+    phone_entry = MockConfigEntry(domain="mobile_app", data={"device_name": "Ste's iPhone"})
+    phone_entry.add_to_hass(hass)
+    phone = dr.async_get(hass).async_get_or_create(
+        config_entry_id=phone_entry.entry_id, identifiers={("mobile_app", "iphone")}, name="Ste's iPhone"
+    )
+    calls = async_mock_service(hass, "notify", "mobile_app_ste_s_iphone")
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert "phones" in result["menu_options"]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "phones"}
+    )
+    assert result["step_id"] == "phones"
+    reminders = {"phone_reminders": ["evening", "morning", "forgotten"]}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**reminders, "phone_enabled": True, "phone_devices": []}
+    )
+    assert result["errors"] == {"phone_devices": "phone_none"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {**reminders, "phone_enabled": True, "phone_devices": [phone.id], "phone_test": True},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert "phone_test" not in entry.options
+    assert len(calls) == 1
+    assert calls[0].data["message"].startswith("This is Bins Out")
+    assert "actions" not in calls[0].data["data"]
+    await hass.async_block_till_done()
+
+    # 19:00 the night before: pops up, vibrates, opens the Bins page, with an "It's out" button.
+    freezer.move_to(local(2026, 10, 26, 19, 0, 0))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(calls) == 2
+    sent = calls[1].data
+    assert sent["title"] == "Bins Out"
+    assert "blue recycling bin" in sent["message"]
+    assert sent["data"]["vibrationPattern"]
+    assert sent["data"]["push"]["interruption-level"] == "time-sensitive"
+    assert sent["data"]["url"] == "/bins-out"
+    [button] = sent["data"]["actions"]
+    assert button == {"action": "BINS_OUT_PUT_OUT:rec", "title": "It's out"}
+
+    # Tapping "It's out" marks the bin as out.
+    assert hass.states.get("switch.recycling_put_out").state == "off"
+    hass.bus.async_fire("mobile_app_notification_action", {"action": button["action"]})
+    await hass.async_block_till_done()
+    assert hass.states.get("switch.recycling_put_out").state == "on"
+    # So the morning reminder has nothing to say.
+    freezer.move_to(local(2026, 10, 27, 6, 30, 0))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(calls) == 2
+    # Other apps' buttons are ignored.
+    hass.bus.async_fire("mobile_app_notification_action", {"action": "SOMETHING_ELSE"})
+    await hass.async_block_till_done()

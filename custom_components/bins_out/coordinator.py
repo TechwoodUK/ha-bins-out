@@ -9,11 +9,11 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.util import dt as dt_util
+from homeassistant.util import dt as dt_util, slugify
 
 from .const import (
     ALEXA_DOMAIN,
@@ -36,6 +36,9 @@ from .const import (
     CONF_MATCH,
     CONF_MESSAGES,
     CONF_MORNING_TIME,
+    CONF_PHONE_DEVICES,
+    CONF_PHONE_ENABLED,
+    CONF_PHONE_REMINDERS,
     CONF_REPEAT_WEEKS,
     CONF_SOURCE,
     CONTAINER_NOUNS,
@@ -45,6 +48,10 @@ from .const import (
     DEFAULT_MORNING_TIME,
     DOMAIN,
     EVENT_REMINDER,
+    MOBILE_APP_DOMAIN,
+    PANEL_ICON,
+    PANEL_URL_PATH,
+    PUT_OUT_ACTION,
     REMINDER_EVENING,
     REMINDER_FORGOTTEN,
     REMINDER_MORNING,
@@ -349,30 +356,34 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
 
     # ---- announcements -----------------------------------------------------
 
-    def bins_where(self, predicate) -> list[str]:
-        data = self.data or {}
-        return [self.spoken_name(b) for b, s in data.items() if predicate(s)]
+    def reminder_bins(self, kind: str) -> list[str]:
+        """Ids of the bins a reminder is about right now."""
+        due = {
+            REMINDER_EVENING: lambda s: s.days_until == 1 and not s.put_out,
+            REMINDER_MORNING: lambda s: s.days_until == 0 and not s.put_out,
+            REMINDER_FORGOTTEN: lambda s: s.forgotten,
+        }[kind]
+        return [b for b, s in (self.data or {}).items() if due(s)]
 
     def message_template(self, kind: str) -> str:
         """A reminder's wording: your own from Configure, or the default."""
         return self.config_entry.options.get(CONF_MESSAGES[kind]) or DEFAULT_MESSAGES[kind]
 
-    def tonight_message(self) -> str | None:
+    def message_for(self, kind: str, bin_ids: list[str] | None = None) -> str | None:
+        if bin_ids is None:
+            bin_ids = self.reminder_bins(kind)
         return reminder_message(
-            self.message_template(REMINDER_EVENING),
-            self.bins_where(lambda s: s.days_until == 1 and not s.put_out),
+            self.message_template(kind), [self.spoken_name(b) for b in bin_ids]
         )
+
+    def tonight_message(self) -> str | None:
+        return self.message_for(REMINDER_EVENING)
 
     def morning_message(self) -> str | None:
-        return reminder_message(
-            self.message_template(REMINDER_MORNING),
-            self.bins_where(lambda s: s.days_until == 0 and not s.put_out),
-        )
+        return self.message_for(REMINDER_MORNING)
 
     def forgotten_message(self) -> str | None:
-        return reminder_message(
-            self.message_template(REMINDER_FORGOTTEN), self.bins_where(lambda s: s.forgotten)
-        )
+        return self.message_for(REMINDER_FORGOTTEN)
 
     @callback
     def _announce_on_alexa(self, kind: str, message: str) -> None:
@@ -409,31 +420,114 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             return False
         return True
 
+    def phone_services(self, device_ids: list[str]) -> list[str]:
+        """notify services of these phones (Home Assistant app), e.g. "mobile_app_ste_s_iphone"."""
+        devices = dr.async_get(self.hass)
+        services = []
+        for device_id in device_ids:
+            if (device := devices.async_get(device_id)) is None:
+                continue
+            for entry_id in device.config_entries:
+                entry = self.hass.config_entries.async_get_entry(entry_id)
+                if entry and entry.domain == MOBILE_APP_DOMAIN:
+                    service = slugify(f"{MOBILE_APP_DOMAIN}_{entry.data['device_name']}")
+                    if self.hass.services.has_service("notify", service):
+                        services.append(service)
+        return services
+
+    @callback
+    def _notify_phones(self, kind: str, message: str, bin_ids: list[str]) -> None:
+        """Pop a reminder up on phones, if that's switched on in Configure."""
+        opts = self.config_entry.options
+        if not opts.get(CONF_PHONE_ENABLED):
+            return
+        if kind not in opts.get(CONF_PHONE_REMINDERS, REMINDERS):
+            return
+        services = self.phone_services(opts.get(CONF_PHONE_DEVICES) or [])
+        if not services:
+            _LOGGER.warning("Phone notifications are on, but no phone could be reached: %s", message)
+            return
+        # Nothing to put out once it's been collected.
+        put_out = bin_ids if kind != REMINDER_FORGOTTEN else []
+        self.config_entry.async_create_background_task(
+            self.hass, self.async_notify_phones(message, services, put_out), "bins_out_phones"
+        )
+
+    async def async_notify_phones(
+        self, message: str, services: list[str], put_out: list[str] | None = None
+    ) -> bool:
+        """Send `message` to these phones. With `put_out`, add an "It's out" button for them."""
+        data: dict[str, Any] = {
+            "tag": DOMAIN,  # a newer reminder replaces the last one
+            "url": f"/{PANEL_URL_PATH}",  # tap to open the Bins page (iPhone)
+            "clickAction": f"/{PANEL_URL_PATH}",  # (Android)
+            "notification_icon": PANEL_ICON,
+            # Android: pop up and vibrate, on a channel of its own.
+            "channel": "Bins Out",
+            "importance": "high",
+            "priority": "high",
+            "ttl": 0,
+            "vibrationPattern": "100, 400, 100, 400",
+            # iPhone: sound and vibration, even in a Focus that allows time-sensitive alerts.
+            "push": {"sound": "default", "interruption-level": "time-sensitive"},
+        }
+        if put_out:
+            data["actions"] = [
+                {"action": f"{PUT_OUT_ACTION}:{','.join(put_out)}", "title": "It's out"}
+            ]
+        ok = True
+        for service in services:
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service,
+                    {"title": "Bins Out", "message": message, "data": data},
+                    blocking=True,
+                )
+            except HomeAssistantError as err:
+                _LOGGER.warning("Couldn't send the reminder to %s: %s", service, err)
+                ok = False
+        return ok
+
+    @callback
+    def async_put_out_from_phone(self, action: str) -> None:
+        """The notification's "It's out" button: mark those bins out, if still due."""
+        prefix = f"{PUT_OUT_ACTION}:"
+        if not action.startswith(prefix):
+            return
+        data = self.data or {}
+        for bin_id in action.removeprefix(prefix).split(","):
+            state = data.get(bin_id)
+            if state is not None and state.days_until in (0, 1) and not state.put_out:
+                self.set_put_out(bin_id, True)
+
     @callback
     def async_setup_reminders(self) -> None:
         """Fire `bins_out_reminder` events at the configured times."""
 
-        def make(kind: str, get_message):
+        def make(kind: str):
             @callback
             def _fire(_now) -> None:
                 self._push()
-                if message := get_message():
+                bin_ids = self.reminder_bins(kind)
+                if message := self.message_for(kind, bin_ids):
                     self.hass.bus.async_fire(
                         EVENT_REMINDER, {"type": kind, "message": message}
                     )
                     self._announce_on_alexa(kind, message)
+                    self._notify_phones(kind, message, bin_ids)
 
             return _fire
 
-        for kind, at, get_message in (
-            (REMINDER_EVENING, self.evening_time, self.tonight_message),
-            (REMINDER_MORNING, self.morning_time, self.morning_message),
-            (REMINDER_FORGOTTEN, self.collection_time, self.forgotten_message),
+        for kind, at in (
+            (REMINDER_EVENING, self.evening_time),
+            (REMINDER_MORNING, self.morning_time),
+            (REMINDER_FORGOTTEN, self.collection_time),
         ):
             self.config_entry.async_on_unload(
                 async_track_time_change(
                     self.hass,
-                    make(kind, get_message),
+                    make(kind),
                     hour=at.hour,
                     minute=at.minute,
                     second=at.second,

@@ -9,7 +9,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import (
     config_validation as cv,
@@ -51,6 +51,8 @@ from .coordinator import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+MOBILE_APP_ACTION_EVENT = "mobile_app_notification_action"
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -226,6 +228,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: BinsOutConfigEntry) -> b
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     coordinator.async_setup_reminders()
     entry.async_on_unload(entry.add_update_listener(_async_reload))
+
+    @callback
+    def _phone_action(event: Event) -> None:
+        coordinator.async_put_out_from_phone(event.data.get("action", ""))
+
+    # Tapping "It's out" on a phone notification (Home Assistant app).
+    entry.async_on_unload(hass.bus.async_listen(MOBILE_APP_ACTION_EVENT, _phone_action))
     await _register_card(hass)
     await _register_panel(hass, entry)
     return True

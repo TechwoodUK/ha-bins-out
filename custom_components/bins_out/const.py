@@ -51,6 +51,14 @@ CONF_ALEXA_MODE = "alexa_mode"  # "announce" (chime first) or "tts"
 CONF_ALEXA_REMINDERS = "alexa_reminders"
 ALEXA_MODES = ["announce", "tts"]
 
+# Phone notifications through the Home Assistant app (Configure → Phone notifications).
+MOBILE_APP_DOMAIN = "mobile_app"
+CONF_PHONE_ENABLED = "phone_enabled"
+CONF_PHONE_DEVICES = "phone_devices"  # device ids of phones with the Home Assistant app
+CONF_PHONE_REMINDERS = "phone_reminders"
+# The notification's "It's out" button; the bin ids follow after the colon.
+PUT_OUT_ACTION = "BINS_OUT_PUT_OUT"
+
 DEFAULT_EVENING_TIME = "19:00:00"
 DEFAULT_MORNING_TIME = "06:30:00"
 DEFAULT_COLLECTION_TIME = "07:00:00"

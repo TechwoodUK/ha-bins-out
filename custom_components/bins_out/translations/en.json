@@ -119,7 +119,9 @@
       "alexa_not_installed": "Alexa Media Player isn't installed yet. Install it from HACS (link above), restart, add it in Settings → Devices & services, then come back.",
       "alexa_no_devices": "Pick at least one Echo device. None listed? Finish setting up Alexa Media Player in Settings → Devices & services.",
       "alexa_test_failed": "The test announcement didn't work. Check Alexa Media Player is signed in (Settings → Devices & services → Alexa Media Player).",
-      "alexa_off": "Switch on Alexa announcements and pick your Echo devices first (Configure → Alexa announcements)."
+      "alexa_off": "Switch on Alexa announcements and pick your Echo devices first (Configure → Alexa announcements).",
+      "phone_none": "Pick at least one phone. None listed? Install the Home Assistant app on the phone, sign in to this Home Assistant, and allow notifications.",
+      "phone_test_failed": "The test notification didn't work. Open the Home Assistant app on the phone, check it's signed in and notifications are allowed, then try again."
     },
     "step": {
       "init": {
@@ -127,6 +129,7 @@
         "menu_options": {
           "settings": "Reminder times",
           "alexa": "Alexa announcements",
+          "phones": "Phone notifications",
           "messages": "Reminder messages",
           "council": "Add bins from my council (needs Waste Collection Schedule)",
           "bin": "Add a bin",
@@ -251,6 +254,19 @@
         "data_description": {
           "message_try": "Alexa says it with your own bins' names, so you can hear how it sounds."
         }
+      },
+      "phones": {
+        "title": "Phone notifications",
+        "description": "Have the reminders pop up on your phone and vibrate, with an **It's out** button so you can tell Bins Out the bins are out. Tap the notification to open the Bins page.\n\nThis needs the free **Home Assistant app** on each phone, signed in to this Home Assistant: [get the app]({app_url}). Phones with the app then appear in the list below.",
+        "data": {
+          "phone_enabled": "Send reminders to phones",
+          "phone_devices": "Phones",
+          "phone_reminders": "Which reminders",
+          "phone_test": "Send a test notification when I save"
+        },
+        "data_description": {
+          "phone_test": "Your phones get \"This is Bins Out. Your bin reminders will pop up here.\" so you can check it works."
+        }
       }
     }
   },
@@ -301,6 +317,13 @@
         "food_caddy": "Food caddy",
         "box": "Recycling box",
         "bag": "Bag or sack"
+      }
+    },
+    "phone_reminders": {
+      "options": {
+        "evening": "Night before",
+        "morning": "Morning of collection",
+        "forgotten": "Bin forgotten"
       }
     }
   },
