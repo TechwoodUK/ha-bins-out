@@ -242,6 +242,15 @@
           "alexa_test": "Alexa says \"This is Bins Out. Your bin reminders will be announced here.\" so you can check it works."
         }
       },
+      "alexa_tested": {
+        "title": "Did Alexa say it?",
+        "description": "Your Echo devices should have said \"This is Bins Out. Your bin reminders will be announced here.\"\n\nNothing? Check the Echo isn't on Do Not Disturb, try **Just speak** instead of **Announce**, and check Alexa Media Player is signed in (Settings → Devices & services).",
+        "menu_options": {
+          "alexa_save": "Yes, it worked: save",
+          "alexa_again": "Say it again",
+          "alexa": "Change the settings"
+        }
+      },
       "messages": {
         "title": "Reminder messages",
         "description": "Choose what the reminders say, on Alexa and in notifications.\n\n**{bins}** is replaced by the bins' names, e.g. *the blue bin and the grey food caddy*. **{was}** becomes *was* or *were* to match. Clear a box to go back to the standard wording.",
@@ -266,6 +275,15 @@
         },
         "data_description": {
           "phone_test": "Your phones get \"This is Bins Out. Your bin reminders will pop up here.\" so you can check it works."
+        }
+      },
+      "phones_tested": {
+        "title": "Did it pop up?",
+        "description": "Your phones should have buzzed with \"This is Bins Out. Your bin reminders will pop up here.\"\n\nNothing? On the phone:\n- **Settings → Apps → Home Assistant → Notifications**: allowed.\n- **Settings → Apps → Home Assistant → Battery**: Unrestricted (Android), so the app isn't asleep.\n- In the Home Assistant app, **Settings → Companion app → Notification history** shows whether it arrived.\n- On an iPhone, allow notifications for Home Assistant in Settings → Notifications.",
+        "menu_options": {
+          "phones_save": "Yes, it worked: save",
+          "phones_again": "Send it again",
+          "phones": "Change the settings"
         }
       }
     }

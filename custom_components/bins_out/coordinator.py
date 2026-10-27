@@ -427,12 +427,11 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
         for device_id in device_ids:
             if (device := devices.async_get(device_id)) is None:
                 continue
-            for entry_id in device.config_entries:
-                entry = self.hass.config_entries.async_get_entry(entry_id)
-                if entry and entry.domain == MOBILE_APP_DOMAIN:
-                    service = slugify(f"{MOBILE_APP_DOMAIN}_{entry.data['device_name']}")
-                    if self.hass.services.has_service("notify", service):
-                        services.append(service)
+            entry = self.hass.config_entries.async_get_entry(device.config_entry_id)
+            if entry and entry.domain == MOBILE_APP_DOMAIN:
+                service = slugify(f"{MOBILE_APP_DOMAIN}_{entry.data['device_name']}")
+                if self.hass.services.has_service("notify", service):
+                    services.append(service)
         return services
 
     @callback

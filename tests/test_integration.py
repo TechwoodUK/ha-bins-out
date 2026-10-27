@@ -807,27 +807,40 @@ async def test_alexa_announces_reminders(
         {**ALEXA, "alexa_enabled": True, "alexa_devices": ["media_player.kitchen"],
          "alexa_reminders": ["evening"], "alexa_test": True},
     )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert "alexa_test" not in entry.options
-    # The test announcement went out.
+    # The test announcement went out; it asks if Alexa said it, and can say it again.
     assert len(calls) == 1
     assert calls[0].data["target"] == ["media_player.kitchen"]
     assert calls[0].data["message"].startswith("This is Bins Out")
+    assert result["step_id"] == "alexa_tested"
+    assert result["menu_options"] == ["alexa_save", "alexa_again", "alexa"]
+    assert "alexa_enabled" not in entry.options  # not saved until they say so
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "alexa_again"}
+    )
+    assert len(calls) == 2
+    assert result["step_id"] == "alexa_tested"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "alexa_save"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["alexa_enabled"] is True
+    assert "alexa_test" not in entry.options
+    calls.clear()
     await hass.async_block_till_done()
 
     # 19:00 the night before: announced.
     freezer.move_to(local(2026, 10, 26, 19, 0, 0))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert len(calls) == 2
-    assert "blue recycling bin" in calls[1].data["message"]
-    assert calls[1].data["data"] == {"type": "announce"}
+    assert len(calls) == 1
+    assert "blue recycling bin" in calls[0].data["message"]
+    assert calls[0].data["data"] == {"type": "announce"}
 
     # Morning reminder wasn't ticked: not announced.
     freezer.move_to(local(2026, 10, 27, 6, 30, 0))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert len(calls) == 2
+    assert len(calls) == 1
 
 
 async def test_alexa_off_announces_nothing(
@@ -998,19 +1011,39 @@ async def test_phone_notifications(
         result["flow_id"],
         {**reminders, "phone_enabled": True, "phone_devices": [phone.id], "phone_test": True},
     )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert "phone_test" not in entry.options
     assert len(calls) == 1
     assert calls[0].data["message"].startswith("This is Bins Out")
     assert "actions" not in calls[0].data["data"]
+    # Asks if it popped up; you can send it again as often as you like.
+    assert result["step_id"] == "phones_tested"
+    for sent in (2, 3):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"next_step_id": "phones_again"}
+        )
+        assert len(calls) == sent
+        assert result["step_id"] == "phones_tested"
+    # "Change the settings" goes back to the form, keeping what you picked.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "phones"}
+    )
+    assert result["step_id"] == "phones"
+    field = next(k for k in result["data_schema"].schema if k == "phone_devices")
+    assert field.default() == [phone.id]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**reminders, "phone_enabled": True, "phone_devices": [phone.id]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["phone_devices"] == [phone.id]
+    assert "phone_test" not in entry.options
+    calls.clear()
     await hass.async_block_till_done()
 
     # 19:00 the night before: pops up, vibrates, opens the Bins page, with an "It's out" button.
     freezer.move_to(local(2026, 10, 26, 19, 0, 0))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert len(calls) == 2
-    sent = calls[1].data
+    assert len(calls) == 1
+    sent = calls[0].data
     assert sent["title"] == "Bins Out"
     assert "blue recycling bin" in sent["message"]
     assert sent["data"]["vibrationPattern"]
@@ -1028,7 +1061,7 @@ async def test_phone_notifications(
     freezer.move_to(local(2026, 10, 27, 6, 30, 0))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert len(calls) == 2
+    assert len(calls) == 1
     # Other apps' buttons are ignored.
     hass.bus.async_fire("mobile_app_notification_action", {"action": "SOMETHING_ELSE"})
     await hass.async_block_till_done()

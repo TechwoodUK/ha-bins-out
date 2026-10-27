@@ -496,6 +496,9 @@ class BinsOutConfigFlow(BinStepsMixin, ConfigFlow, domain=DOMAIN):
 class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
     """Change times, add / edit / remove bins."""
 
+    # Alexa or phone settings waiting while you check the test arrived.
+    _tested_settings: dict[str, Any] | None = None
+
     def _existing_bins(self) -> list[dict[str, Any]]:
         return list(self.config_entry.options.get(CONF_BINS, []))
 
@@ -543,7 +546,7 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
     ) -> ConfigFlowResult:
         """Switch Alexa announcements of the reminders on or off."""
         errors: dict[str, str] = {}
-        current = {**self.config_entry.options, **(user_input or {})}
+        current = {**self.config_entry.options, **(self._tested_settings or {}), **(user_input or {})}
         if user_input is not None:
             settings = {k: v for k, v in user_input.items() if k != CONF_ALEXA_TEST}
             devices = settings.get(CONF_ALEXA_DEVICES) or []
@@ -557,11 +560,9 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
                     if not devices:
                         errors[CONF_ALEXA_DEVICES] = "alexa_no_devices"
             if not errors and user_input.get(CONF_ALEXA_TEST):
-                coordinator = self.config_entry.runtime_data
-                if not await coordinator.async_announce(
-                    ALEXA_TEST_MESSAGE, devices, settings[CONF_ALEXA_MODE]
-                ):
-                    errors["base"] = "alexa_test_failed"
+                if await self._async_alexa_test(settings):
+                    return self._tested("alexa", settings)
+                errors["base"] = "alexa_test_failed"
             if not errors:
                 return self._save(**settings)
         schema = vol.Schema(
@@ -610,16 +611,18 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
     ) -> ConfigFlowResult:
         """Pop the reminders up on phones with the Home Assistant app."""
         errors: dict[str, str] = {}
-        current = {**self.config_entry.options, **(user_input or {})}
+        current = {**self.config_entry.options, **(self._tested_settings or {}), **(user_input or {})}
         if user_input is not None:
             settings = {k: v for k, v in user_input.items() if k != CONF_PHONE_TEST}
-            coordinator = self.config_entry.runtime_data
-            services = coordinator.phone_services(settings.get(CONF_PHONE_DEVICES) or [])
+            services = self.config_entry.runtime_data.phone_services(
+                settings.get(CONF_PHONE_DEVICES) or []
+            )
             if (settings[CONF_PHONE_ENABLED] or user_input.get(CONF_PHONE_TEST)) and not services:
                 errors[CONF_PHONE_DEVICES] = "phone_none"
             if not errors and user_input.get(CONF_PHONE_TEST):
-                if not await coordinator.async_notify_phones(PHONE_TEST_MESSAGE, services):
-                    errors["base"] = "phone_test_failed"
+                if await self._async_phone_test(settings):
+                    return self._tested("phones", settings)
+                errors["base"] = "phone_test_failed"
             if not errors:
                 return self._save(**settings)
         schema = vol.Schema(
@@ -651,6 +654,49 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
             errors=errors,
             description_placeholders={"app_url": "https://companion.home-assistant.io/"},
         )
+
+    # ---- "Did it arrive?" after a test announcement or notification ----------
+
+    def _tested(self, step: str, settings: dict[str, Any]) -> ConfigFlowResult:
+        """Ask if the test arrived; keep the settings until they say save."""
+        self._tested_settings = settings
+        return self.async_show_menu(
+            step_id=f"{step}_tested", menu_options=[f"{step}_save", f"{step}_again", step]
+        )
+
+    async def _async_alexa_test(self, settings: dict[str, Any]) -> bool:
+        return await self.config_entry.runtime_data.async_announce(
+            ALEXA_TEST_MESSAGE,
+            settings.get(CONF_ALEXA_DEVICES) or [],
+            settings.get(CONF_ALEXA_MODE, "announce"),
+        )
+
+    async def _async_phone_test(self, settings: dict[str, Any]) -> bool:
+        coordinator = self.config_entry.runtime_data
+        services = coordinator.phone_services(settings.get(CONF_PHONE_DEVICES) or [])
+        return bool(services) and await coordinator.async_notify_phones(
+            PHONE_TEST_MESSAGE, services
+        )
+
+    async def async_step_alexa_save(self, user_input: Any = None) -> ConfigFlowResult:
+        return self._save(**(self._tested_settings or {}))
+
+    async def async_step_alexa_again(self, user_input: Any = None) -> ConfigFlowResult:
+        if await self._async_alexa_test(self._tested_settings or {}):
+            return self._tested("alexa", self._tested_settings or {})
+        return await self.async_step_alexa()
+
+    async def async_step_phones_save(self, user_input: Any = None) -> ConfigFlowResult:
+        return self._save(**(self._tested_settings or {}))
+
+    async def async_step_phones_again(self, user_input: Any = None) -> ConfigFlowResult:
+        if await self._async_phone_test(self._tested_settings or {}):
+            return self._tested("phones", self._tested_settings or {})
+        return await self.async_step_phones()
+
+    # Menus only; HA needs a step for each screen id.
+    async_step_alexa_tested = async_step_alexa
+    async_step_phones_tested = async_step_phones
 
     async def async_step_messages(
         self, user_input: dict[str, Any] | None = None
