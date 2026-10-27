@@ -3,7 +3,8 @@
   "name": "Bins Out",
   "after_dependencies": [
     "frontend",
-    "lovelace"
+    "lovelace",
+    "panel_custom"
   ],
   "codeowners": [
     "@TechwoodUK"

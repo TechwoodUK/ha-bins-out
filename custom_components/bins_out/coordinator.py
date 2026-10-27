@@ -77,6 +77,11 @@ type BinsOutConfigEntry = ConfigEntry[BinsOutCoordinator]
 ISSUE_CALENDAR_MISSING = "calendar_missing"
 
 
+def storage_key(entry_id: str) -> str:
+    """Where an entry's put-out flags, moved dates and learned dates are saved."""
+    return f"{DOMAIN}.{entry_id}"
+
+
 def calendar_issue_prefix(entry_id: str) -> str:
     """Repairs issue ids for an entry's missing calendars start with this."""
     return f"{ISSUE_CALENDAR_MISSING}_{entry_id}_"
@@ -123,7 +128,7 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             opts.get(CONF_COLLECTION_TIME, DEFAULT_COLLECTION_TIME)
         )
         self._store: Store[dict[str, Any]] = Store(
-            hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
+            hass, STORAGE_VERSION, storage_key(entry.entry_id)
         )
         self._put_out: dict[str, date] = {}
         self._moved: dict[str, dict[date, date]] = {}

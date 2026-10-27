@@ -42,6 +42,7 @@ Type **Integration** → **Add**. Then search HACS for **Bins Out** → **Downlo
 
 **4. Set it up.** Settings → Devices & services → Add integration → **Bins Out**. Choose your reminder
 times, then **From my council** (recommended, see below) or **I'll add my bins myself**.
+When you're done, click **Bins** in the left menu to see your bins.
 
 Add, edit or remove bins later with **Configure** on the integration. Updates appear in
 Settings → Updates when there's a new version.
@@ -161,17 +162,25 @@ not both, or Alexa will say each reminder twice.
 **Tell Alexa it's out:** expose `switch.<bin>_put_out` to Alexa and say *"Alexa, turn on recycling put out"*,
 or make an Alexa routine ("Alexa, I've put the bins out") that turns the switches on.
 
-## Dashboard card
+## The Bins page and card
 
-The card lives at `custom_components/bins_out/frontend/bins-out-card.js`. The integration adds it
-as a Lovelace resource for you. If your resources are in YAML mode, add
-`url: /bins_out_static/bins-out-card.js`, `type: module` yourself (change the URL, e.g. add
-`?v=2`, after updating so browsers fetch the new card). Add it to a dashboard:
+Once Bins Out is set up, a **Bins** page appears in the left menu for everyone in your home,
+showing all your bins, when they're next collected, and a calendar. Nothing to set up.
+
+To put the same card on one of your own dashboards too: open the dashboard → ✏️ (top right) →
+**+ Add card** → search **Bins Out** → **Save**. (If there's no ✏️, use ⋮ → **Edit dashboard**.)
+
+<details><summary>Dashboards in YAML</summary>
 
 ```yaml
 type: custom:bins-out-card
 entity: sensor.bins_out_next_collection
 ```
+
+The card is added to your dashboard resources for you. If your resources are in YAML mode, add
+`url: /bins_out_static/bins-out-card.js`, `type: module` yourself (change the URL, e.g. add
+`?v=2`, after updating so browsers fetch the new card).
+</details>
 
 
 ## Development

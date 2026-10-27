@@ -110,6 +110,13 @@ ATTR_DATE = "date"
 # Frontend card served by the integration (written separately).
 CARD_FILENAME = "bins-out-card.js"
 CARD_URL_BASE = f"/{DOMAIN}_static"
+# The "Bins" sidebar page: the card on a page of its own, so nobody has to build a dashboard.
+PANEL_FILENAME = "bins-out-panel.js"
+PANEL_URL_PATH = "bins-out"
+PANEL_TITLE = "Bins"
+PANEL_ICON = "mdi:delete-empty"
+# hass.data key: {filename: fingerprinted URL} for the files in frontend/.
+DATA_FRONTEND_URLS = f"{DOMAIN}_frontend_urls"
 
 UPCOMING_COUNT = 6
 STORAGE_VERSION = 1
