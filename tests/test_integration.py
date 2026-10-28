@@ -1156,3 +1156,21 @@ async def test_only_phones_at_home(
     hass.states.async_set("device_tracker.iphone", "not_home")
     await remind(11, 2)  # General is due on 3 Nov
     assert (len(to_mine), len(to_theirs)) == (2, 1)
+
+
+async def test_changes_kept_when_settings_change_straight_after(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    """Marking a bin out and then saving a setting at once mustn't lose the mark."""
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": "switch.recycling_put_out"}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN, "move_collection",
+        {"bin": "General", "original_date": "2026-11-03", "new_date": "2026-11-04"}, blocking=True,
+    )
+    # Saving a setting reloads Bins Out, before the delayed save has written anything.
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "evening_time": "19:30:00"})
+    await hass.async_block_till_done()
+    assert hass.states.get("switch.recycling_put_out").state == "on"
+    assert hass.states.get("sensor.general_next_collection").state == "2026-11-04"

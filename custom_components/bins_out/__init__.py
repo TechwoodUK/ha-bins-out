@@ -241,6 +241,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: BinsOutConfigEntry) -> b
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: BinsOutConfigEntry) -> bool:
+    # Changes are saved a moment later; make sure a reload doesn't read old ones back.
+    await entry.runtime_data.async_save_now()
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         _unregister_panel(hass)
     return unloaded

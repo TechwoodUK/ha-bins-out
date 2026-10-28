@@ -185,28 +185,32 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
         }
         self._learned_weeks = {k: int(w) for k, w in per_bin("learned_weeks").items()}
 
+    def _stored(self) -> dict[str, Any]:
+        return {
+            "put_out": {k: v.isoformat() for k, v in self._put_out.items()},
+            "moved": {
+                bin_id: {k.isoformat(): v.isoformat() for k, v in m.items()}
+                for bin_id, m in self._moved.items()
+            },
+            "cancelled": {
+                k: sorted(d.isoformat() for d in ds) for k, ds in self._cancelled.items()
+            },
+            "calendar_dates": {
+                k: [d.isoformat() for d in ds] for k, ds in self._calendar_dates.items()
+            },
+            "seen_dates": {
+                k: [d.isoformat() for d in ds] for k, ds in self._seen_dates.items()
+            },
+            "learned_weeks": dict(self._learned_weeks),
+        }
+
     @callback
     def _save(self) -> None:
-        self._store.async_delay_save(
-            lambda: {
-                "put_out": {k: v.isoformat() for k, v in self._put_out.items()},
-                "moved": {
-                    bin_id: {k.isoformat(): v.isoformat() for k, v in m.items()}
-                    for bin_id, m in self._moved.items()
-                },
-                "cancelled": {
-                    k: sorted(d.isoformat() for d in ds) for k, ds in self._cancelled.items()
-                },
-                "calendar_dates": {
-                    k: [d.isoformat() for d in ds] for k, ds in self._calendar_dates.items()
-                },
-                "seen_dates": {
-                    k: [d.isoformat() for d in ds] for k, ds in self._seen_dates.items()
-                },
-                "learned_weeks": dict(self._learned_weeks),
-            },
-            1,
-        )
+        self._store.async_delay_save(self._stored, 1)
+
+    async def async_save_now(self) -> None:
+        """Write pending changes now, e.g. before a reload reads them back."""
+        await self._store.async_save(self._stored())
 
     # ---- state -------------------------------------------------------------
 
