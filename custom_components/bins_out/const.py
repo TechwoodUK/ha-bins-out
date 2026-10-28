@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import time, timedelta
 
 DOMAIN = "bins_out"
-VERSION = "0.1.0"
+VERSION = "0.2.0"  # keep in step with manifest.json
 
 PLATFORMS = ["binary_sensor", "calendar", "sensor", "switch"]
 
