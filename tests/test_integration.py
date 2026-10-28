@@ -1038,30 +1038,121 @@ async def test_phone_notifications(
     calls.clear()
     await hass.async_block_till_done()
 
-    # 19:00 the night before: pops up, vibrates, opens the Bins page, with an "It's out" button.
+    # 19:00 the night before: pops up, vibrates, opens the Bins page, asks if it's out.
     freezer.move_to(local(2026, 10, 26, 19, 0, 0))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert len(calls) == 1
     sent = calls[0].data
-    assert sent["title"] == "Bins Out"
+    assert sent["title"] == "Have you put it out?"
     assert "blue recycling bin" in sent["message"]
     assert sent["data"]["vibrationPattern"]
     assert sent["data"]["push"]["interruption-level"] == "time-sensitive"
     assert sent["data"]["url"] == "/bins-out"
-    [button] = sent["data"]["actions"]
-    assert button == {"action": "BINS_OUT_PUT_OUT:rec", "title": "It's out"}
+    yes, not_yet = sent["data"]["actions"]
+    assert yes == {"action": "BINS_OUT_PUT_OUT:rec", "title": "Yes"}
+    assert not_yet == {"action": "BINS_OUT_NOT_YET:evening", "title": "Not yet"}
 
-    # Tapping "It's out" marks the bin as out.
+    # Not yet: asked again an hour later.
+    freezer.move_to(local(2026, 10, 26, 19, 5, 0))
+    hass.bus.async_fire("mobile_app_notification_action", {"action": not_yet["action"]})
+    await hass.async_block_till_done()
+    freezer.move_to(local(2026, 10, 26, 20, 5, 1))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(calls) == 2
+    assert calls[1].data["title"] == "Have you put it out?"
+
+    # Not yet again at 21:30: an hour later is past bedtime (22:00), so no more.
+    freezer.move_to(local(2026, 10, 26, 21, 30, 0))
+    hass.bus.async_fire("mobile_app_notification_action", {"action": not_yet["action"]})
+    await hass.async_block_till_done()
+    freezer.move_to(local(2026, 10, 26, 22, 31, 0))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(calls) == 2
+
+    # Yes marks the bin as out.
     assert hass.states.get("switch.recycling_put_out").state == "off"
-    hass.bus.async_fire("mobile_app_notification_action", {"action": button["action"]})
+    hass.bus.async_fire("mobile_app_notification_action", {"action": yes["action"]})
     await hass.async_block_till_done()
     assert hass.states.get("switch.recycling_put_out").state == "on"
     # So the morning reminder has nothing to say.
     freezer.move_to(local(2026, 10, 27, 6, 30, 0))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert len(calls) == 1
+    assert len(calls) == 2
     # Other apps' buttons are ignored.
     hass.bus.async_fire("mobile_app_notification_action", {"action": "SOMETHING_ELSE"})
+    hass.bus.async_fire("mobile_app_notification_action", {"action": "BINS_OUT_NOT_YET:nonsense"})
     await hass.async_block_till_done()
+
+
+async def test_not_yet_stops_once_its_out(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    phone = _phone(hass, "Ste's iPhone", "iphone")
+    calls = async_mock_service(hass, "notify", "mobile_app_ste_s_iphone")
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "phone_enabled": True, "phone_devices": [phone.id]}
+    )
+    await hass.async_block_till_done()
+    freezer.move_to(local(2026, 10, 26, 19, 0, 0))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+    hass.bus.async_fire("mobile_app_notification_action", {"action": "BINS_OUT_NOT_YET:evening"})
+    await hass.async_block_till_done()
+    # Put out some other way (the switch) before the hour is up: no second reminder.
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": "switch.recycling_put_out"}, blocking=True
+    )
+    freezer.move_to(local(2026, 10, 26, 20, 0, 1))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+
+
+def _phone(hass: HomeAssistant, name: str, ident: str):
+    """A phone with the Home Assistant app, and its location tracker."""
+    phone_entry = MockConfigEntry(domain="mobile_app", data={"device_name": name})
+    phone_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=phone_entry.entry_id, identifiers={("mobile_app", ident)}, name=name
+    )
+    er.async_get(hass).async_get_or_create(
+        "device_tracker", "mobile_app", ident, device_id=device.id,
+        config_entry=phone_entry, suggested_object_id=ident,
+    )
+    return device
+
+
+async def test_only_phones_at_home(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    mine = _phone(hass, "Ste's iPhone", "iphone")
+    theirs = _phone(hass, "Galaxy", "galaxy")
+    to_mine = async_mock_service(hass, "notify", "mobile_app_ste_s_iphone")
+    to_theirs = async_mock_service(hass, "notify", "mobile_app_galaxy")
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**entry.options, "phone_enabled": True, "phone_home_only": True,
+                 "phone_devices": [mine.id, theirs.id]},
+    )
+    await hass.async_block_till_done()
+
+    async def remind(month: int, day: int) -> None:
+        freezer.move_to(local(2026, month, day, 19, 0, 0))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    # I'm home, they're at work: only I'm reminded.
+    hass.states.async_set("device_tracker.iphone", "home")
+    hass.states.async_set("device_tracker.galaxy", "Work")
+    await remind(10, 26)
+    assert (len(to_mine), len(to_theirs)) == (1, 0)
+
+    # Both out: everyone's reminded, so it isn't missed.
+    hass.states.async_set("device_tracker.iphone", "not_home")
+    await remind(11, 2)  # General is due on 3 Nov
+    assert (len(to_mine), len(to_theirs)) == (2, 1)

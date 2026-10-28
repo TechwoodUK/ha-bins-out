@@ -266,14 +266,16 @@
       },
       "phones": {
         "title": "Phone notifications",
-        "description": "Have the reminders pop up on your phone and vibrate, with an **It's out** button so you can tell Bins Out the bins are out. Tap the notification to open the Bins page.\n\nThis needs the free **Home Assistant app** on each phone, signed in to this Home Assistant: [get the app]({app_url}). Phones with the app then appear in the list below.",
+        "description": "Have the reminders pop up on your phone and vibrate, asking **Have you put it out?** Tap **Yes** to tell Bins Out it's out, or **Not yet** to be asked again an hour later (until 22:00 the night before, or until collection time in the morning). Tap the notification to open the Bins page.\n\nThis needs the free **Home Assistant app** on each phone, signed in to this Home Assistant: [get the app]({app_url}). Phones with the app then appear in the list below.",
         "data": {
           "phone_enabled": "Send reminders to phones",
           "phone_devices": "Phones",
+          "phone_home_only": "Only phones that are at home",
           "phone_reminders": "Which reminders",
           "phone_test": "Send a test notification when I save"
         },
         "data_description": {
+          "phone_home_only": "Phones that are away from home are skipped. If nobody's home, every phone is reminded. Uses the phone's location from the Home Assistant app.",
           "phone_test": "Your phones get \"This is Bins Out. Your bin reminders will pop up here.\" so you can check it works."
         }
       },

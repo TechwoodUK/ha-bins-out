@@ -38,6 +38,7 @@ from .const import (
     CONF_MORNING_TIME,
     CONF_PHONE_DEVICES,
     CONF_PHONE_ENABLED,
+    CONF_PHONE_HOME_ONLY,
     CONF_PHONE_REMINDERS,
     CONF_REPEAT_WEEKS,
     CONF_SOURCE,
@@ -635,6 +636,9 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
                 ): selector.DeviceSelector(
                     selector.DeviceSelectorConfig(integration=MOBILE_APP_DOMAIN, multiple=True)
                 ),
+                vol.Optional(
+                    CONF_PHONE_HOME_ONLY, default=current.get(CONF_PHONE_HOME_ONLY, False)
+                ): selector.BooleanSelector(),
                 vol.Required(
                     CONF_PHONE_REMINDERS, default=current.get(CONF_PHONE_REMINDERS, REMINDERS)
                 ): selector.SelectSelector(

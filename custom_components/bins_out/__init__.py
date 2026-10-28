@@ -231,9 +231,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: BinsOutConfigEntry) -> b
 
     @callback
     def _phone_action(event: Event) -> None:
-        coordinator.async_put_out_from_phone(event.data.get("action", ""))
+        coordinator.async_phone_action(event.data.get("action", ""))
 
-    # Tapping "It's out" on a phone notification (Home Assistant app).
+    # Tapping Yes / Not yet on a phone notification (Home Assistant app).
     entry.async_on_unload(hass.bus.async_listen(MOBILE_APP_ACTION_EVENT, _phone_action))
     await _register_card(hass)
     await _register_panel(hass, entry)

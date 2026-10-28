@@ -7,10 +7,15 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import CoreState, HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, CoreState, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import device_registry as dr, issue_registry as ir
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.const import STATE_HOME, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
+from homeassistant.helpers.event import async_call_later, async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util, slugify
@@ -38,6 +43,7 @@ from .const import (
     CONF_MORNING_TIME,
     CONF_PHONE_DEVICES,
     CONF_PHONE_ENABLED,
+    CONF_PHONE_HOME_ONLY,
     CONF_PHONE_REMINDERS,
     CONF_REPEAT_WEEKS,
     CONF_SOURCE,
@@ -49,6 +55,9 @@ from .const import (
     DOMAIN,
     EVENT_REMINDER,
     MOBILE_APP_DOMAIN,
+    NOT_YET_ACTION,
+    NOT_YET_DELAY,
+    NOT_YET_UNTIL_EVENING,
     PANEL_ICON,
     PANEL_URL_PATH,
     PUT_OUT_ACTION,
@@ -138,6 +147,8 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             hass, STORAGE_VERSION, storage_key(entry.entry_id)
         )
         self._put_out: dict[str, date] = {}
+        # Cancels the pending "Not yet" reminder, if any.
+        self._cancel_ask_again_cb: CALLBACK_TYPE | None = None
         self._moved: dict[str, dict[date, date]] = {}
         self._cancelled: dict[str, set[date]] = {}
         # Last dates read from each calendar-sourced bin's calendar. Persisted, so
@@ -434,6 +445,18 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
                     services.append(service)
         return services
 
+    def phone_is_away(self, device_id: str) -> bool:
+        """True if the phone's location says it's somewhere other than home."""
+        for entity in er.async_entries_for_device(er.async_get(self.hass), device_id):
+            if entity.domain == "device_tracker":
+                state = self.hass.states.get(entity.entity_id)
+                return state is not None and state.state not in (
+                    STATE_HOME,
+                    STATE_UNKNOWN,
+                    STATE_UNAVAILABLE,
+                )
+        return False
+
     @callback
     def _notify_phones(self, kind: str, message: str, bin_ids: list[str]) -> None:
         """Pop a reminder up on phones, if that's switched on in Configure."""
@@ -442,20 +465,31 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             return
         if kind not in opts.get(CONF_PHONE_REMINDERS, REMINDERS):
             return
-        services = self.phone_services(opts.get(CONF_PHONE_DEVICES) or [])
+        devices = opts.get(CONF_PHONE_DEVICES) or []
+        if opts.get(CONF_PHONE_HOME_ONLY):
+            # Skip phones that are out; if everyone's out, remind everyone anyway.
+            devices = [d for d in devices if not self.phone_is_away(d)] or devices
+        services = self.phone_services(devices)
         if not services:
             _LOGGER.warning("Phone notifications are on, but no phone could be reached: %s", message)
             return
-        # Nothing to put out once it's been collected.
-        put_out = bin_ids if kind != REMINDER_FORGOTTEN else []
         self.config_entry.async_create_background_task(
-            self.hass, self.async_notify_phones(message, services, put_out), "bins_out_phones"
+            self.hass, self.async_notify_phones(message, services, kind, bin_ids), "bins_out_phones"
         )
 
     async def async_notify_phones(
-        self, message: str, services: list[str], put_out: list[str] | None = None
+        self,
+        message: str,
+        services: list[str],
+        kind: str | None = None,
+        bin_ids: list[str] | None = None,
     ) -> bool:
-        """Send `message` to these phones. With `put_out`, add an "It's out" button for them."""
+        """Send `message` to these phones.
+
+        For the evening and morning reminders it asks "Have you put it out?" with
+        Yes (mark those bins out) and Not yet (ask again later) buttons.
+        """
+        title = "Bins Out"
         data: dict[str, Any] = {
             "tag": DOMAIN,  # a newer reminder replaces the last one
             "url": f"/{PANEL_URL_PATH}",  # tap to open the Bins page (iPhone)
@@ -470,9 +504,12 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             # iPhone: sound and vibration, even in a Focus that allows time-sensitive alerts.
             "push": {"sound": "default", "interruption-level": "time-sensitive"},
         }
-        if put_out:
+        if kind in (REMINDER_EVENING, REMINDER_MORNING) and bin_ids:
+            ids = ",".join(bin_ids)
+            title = "Have you put it out?" if len(bin_ids) == 1 else "Have you put them out?"
             data["actions"] = [
-                {"action": f"{PUT_OUT_ACTION}:{','.join(put_out)}", "title": "It's out"}
+                {"action": f"{PUT_OUT_ACTION}:{ids}", "title": "Yes"},
+                {"action": f"{NOT_YET_ACTION}:{kind}", "title": "Not yet"},
             ]
         ok = True
         for service in services:
@@ -480,7 +517,7 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
                 await self.hass.services.async_call(
                     "notify",
                     service,
-                    {"title": "Bins Out", "message": message, "data": data},
+                    {"title": title, "message": message, "data": data},
                     blocking=True,
                 )
             except HomeAssistantError as err:
@@ -489,20 +526,51 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
         return ok
 
     @callback
-    def async_put_out_from_phone(self, action: str) -> None:
-        """The notification's "It's out" button: mark those bins out, if still due."""
-        prefix = f"{PUT_OUT_ACTION}:"
-        if not action.startswith(prefix):
+    def async_phone_action(self, action: str) -> None:
+        """A button on a reminder notification was tapped."""
+        kind, _, arg = action.partition(":")
+        if kind == PUT_OUT_ACTION:
+            # Yes: mark those bins out, if still due.
+            data = self.data or {}
+            for bin_id in arg.split(","):
+                state = data.get(bin_id)
+                if state is not None and state.days_until in (0, 1) and not state.put_out:
+                    self.set_put_out(bin_id, True)
+        elif kind == NOT_YET_ACTION and arg in (REMINDER_EVENING, REMINDER_MORNING):
+            self._ask_again_later(arg)
+
+    def _ask_again_until(self, kind: str) -> datetime:
+        """No more "not yet" reminders after bedtime, or once the lorry's been."""
+        stop = NOT_YET_UNTIL_EVENING if kind == REMINDER_EVENING else self.collection_time
+        return dt_util.now().replace(hour=stop.hour, minute=stop.minute, second=0, microsecond=0)
+
+    @callback
+    def _ask_again_later(self, kind: str) -> None:
+        """Not yet: remind the phones again in a while, if that's still in time."""
+        self._cancel_ask_again()
+        if dt_util.now() + NOT_YET_DELAY > self._ask_again_until(kind):
             return
-        data = self.data or {}
-        for bin_id in action.removeprefix(prefix).split(","):
-            state = data.get(bin_id)
-            if state is not None and state.days_until in (0, 1) and not state.put_out:
-                self.set_put_out(bin_id, True)
+
+        @callback
+        def _again(_now) -> None:
+            self._cancel_ask_again_cb = None
+            self._push()
+            bin_ids = self.reminder_bins(kind)
+            if message := self.message_for(kind, bin_ids):
+                self._notify_phones(kind, message, bin_ids)
+
+        self._cancel_ask_again_cb = async_call_later(self.hass, NOT_YET_DELAY, _again)
+
+    @callback
+    def _cancel_ask_again(self) -> None:
+        if self._cancel_ask_again_cb is not None:
+            self._cancel_ask_again_cb()
+            self._cancel_ask_again_cb = None
 
     @callback
     def async_setup_reminders(self) -> None:
         """Fire `bins_out_reminder` events at the configured times."""
+        self.config_entry.async_on_unload(self._cancel_ask_again)
 
         def make(kind: str):
             @callback

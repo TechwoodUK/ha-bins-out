@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import time, timedelta
+
 DOMAIN = "bins_out"
 VERSION = "0.1.0"
 
@@ -56,8 +58,13 @@ MOBILE_APP_DOMAIN = "mobile_app"
 CONF_PHONE_ENABLED = "phone_enabled"
 CONF_PHONE_DEVICES = "phone_devices"  # device ids of phones with the Home Assistant app
 CONF_PHONE_REMINDERS = "phone_reminders"
-# The notification's "It's out" button; the bin ids follow after the colon.
+CONF_PHONE_HOME_ONLY = "phone_home_only"  # skip phones that are away from home
+# The notification's buttons. Yes: "BINS_OUT_PUT_OUT:<bin ids>". Not yet: "BINS_OUT_NOT_YET:<reminder>".
 PUT_OUT_ACTION = "BINS_OUT_PUT_OUT"
+NOT_YET_ACTION = "BINS_OUT_NOT_YET"
+# Not yet: ask again this much later, but not after bedtime (evening) or collection time (morning).
+NOT_YET_DELAY = timedelta(hours=1)
+NOT_YET_UNTIL_EVENING = time(22, 0)
 
 DEFAULT_EVENING_TIME = "19:00:00"
 DEFAULT_MORNING_TIME = "06:30:00"
