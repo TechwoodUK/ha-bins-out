@@ -25,7 +25,7 @@ class BinsOutPanel extends HTMLElement {
         button:hover { background: rgba(127, 127, 127, 0.15); }
         svg { width: 24px; height: 24px; fill: currentColor; }
         .title { margin-left: 12px; }
-        .content { max-width: 600px; margin: 0 auto; padding: 16px; }
+        .content { max-width: 1100px; margin: 0 auto; padding: 16px; }
         .error { color: var(--error-color, #db4437); }
       </style>
       <div class="toolbar">
@@ -69,7 +69,7 @@ class BinsOutPanel extends HTMLElement {
       // Same URL as the dashboard resource, so the browser loads the card only once.
       if (!customElements.get("bins-out-card")) await import(this._panelConfig.card_url);
       const card = document.createElement("bins-out-card");
-      card.setConfig({ type: "custom:bins-out-card", entity: this._panelConfig.entity });
+      card.setConfig({ type: "custom:bins-out-card", entity: this._panelConfig.entity, view: "page" });
       if (this._hass) card.hass = this._hass;
       this._card = card;
       content.replaceChildren(card);

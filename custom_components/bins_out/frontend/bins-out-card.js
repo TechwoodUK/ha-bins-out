@@ -5,7 +5,13 @@ const DEFAULT_ENTITY = "sensor.bins_out_next_collection";
 const TOGGLE_STATUSES = new Set(["tomorrow", "today", "out", "forgotten"]);
 const HOLD_MS = 500;
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_MON = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_FULL_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const SETTINGS_PATH = "/config/integrations/integration/bins_out";
 
 /* ---------- helpers ---------- */
 
@@ -32,6 +38,40 @@ function inDays(n) {
   if (n === 0) return "today";
   if (n === 1) return "in 1 day";
   return `in ${n} days`;
+}
+
+function relDaysPage(n) {
+  if (n === null || n === undefined) return "";
+  if (n === 0) return "today";
+  if (n === 1) return "tomorrow";
+  if (n < 0) return `${Math.abs(n)}d ago`;
+  return `in ${n} days`;
+}
+
+function howOftenText(bin) {
+  const weeks = bin.interval_weeks ?? bin.repeat_weeks ?? null;
+  if (!weeks || weeks <= 0) return "";
+  return weeks === 1 ? "every week" : `every ${weeks} weeks`;
+}
+
+function joinSpokenNames(list) {
+  if (!list || !list.length) return "bin";
+  const names = list.map((b) => String(b.spoken_name || b.name || "bin").trim());
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.length} bins`;
+}
+
+function fmtShortTime(timeStr, fallback) {
+  if (typeof timeStr === "string" && timeStr.length >= 5) {
+    return timeStr.slice(0, 5);
+  }
+  return fallback;
+}
+
+function navigateToSettings() {
+  history.pushState(null, "", SETTINGS_PATH);
+  window.dispatchEvent(new CustomEvent("location-changed"));
 }
 
 function esc(value) {
@@ -80,6 +120,38 @@ function statusLabel(bin) {
     case "forgotten": return "Missed!";
     default: return "No collections";
   }
+}
+
+function pageIconSvg(kind) {
+  let paths = "";
+  switch (kind) {
+    case "moon":
+      paths = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+      break;
+    case "sunrise":
+      paths = `<path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="8 6 12 2 16 6"/>`;
+      break;
+    case "warning":
+      paths = `<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`;
+      break;
+    case "tick":
+      paths = `<polyline points="20 6 9 17 4 12"/>`;
+      break;
+    case "undo":
+      paths = `<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>`;
+      break;
+    case "chevronLeft":
+      paths = `<polyline points="15 18 9 12 15 6"/>`;
+      break;
+    case "chevronRight":
+      paths = `<polyline points="9 18 15 12 9 6"/>`;
+      break;
+    case "calendar":
+    default:
+      paths = `<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>`;
+      break;
+  }
+  return `<svg class="pg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
 
 function binSvg(bin) {
@@ -242,8 +314,12 @@ function getRecentCancelled(bin, today) {
 /* ---------- styles ---------- */
 
 const STYLE = `
-:host { display: block; }
-ha-card { position: relative; padding: 16px; }
+:host {
+  display: block;
+  --bins-green: #2e9e44;
+  --bins-orange: #f07a1a;
+}
+ha-card { position: relative; padding: 16px; box-sizing: border-box; }
 .header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:12px; }
 .title { font-size: 1.25rem; font-weight: 500; color: var(--primary-text-color); }
 .summary { font-size: .85rem; color: var(--secondary-text-color); }
@@ -274,6 +350,7 @@ ha-card { position: relative; padding: 16px; }
   transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
   user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color: transparent;
   outline: none;
+  box-sizing: border-box;
 }
 .bin:hover { background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
 .bin:active { transform: scale(.97); }
@@ -292,7 +369,8 @@ ha-card { position: relative; padding: 16px; }
 .text { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; }
 .name { font-weight:600; color: var(--primary-text-color); font-size: .98rem; }
 .label { font-size:.85rem; font-weight:600; color: var(--secondary-text-color); }
-.when { display:inline-flex; align-items:center; gap:3px; font-size:.78rem; color: var(--secondary-text-color); }
+.when { display:inline-flex; align-items:center; gap:3px; font-size:.78rem; color: var(--secondary-text-color); flex-wrap:wrap; justify-content:center; }
+.freq { font-size:.75rem; color: var(--secondary-text-color); }
 .cancelled-line { font-size:.74rem; color: var(--error-color, #db4437); font-weight: 500; }
 .source-icon { display:inline-flex; align-items:center; opacity:.75; color: var(--secondary-text-color); vertical-align:middle; }
 
@@ -327,10 +405,6 @@ ha-card { position: relative; padding: 16px; }
   0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning-color, #ffa600) 20%, transparent); }
   50% { box-shadow: 0 0 20px 5px color-mix(in srgb, var(--warning-color, #ffa600) 70%, transparent); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .bin, .bin-art { transition: none; }
-  .s-tomorrow.due, .s-today { animation: none; }
-}
 
 /* in-card menu */
 .menu-backdrop {
@@ -358,6 +432,7 @@ ha-card { position: relative; padding: 16px; }
   display: flex;
   align-items: center;
   width: 100%;
+  min-height: 44px;
   padding: 8px 12px;
   border-radius: 6px;
   border: none;
@@ -376,7 +451,7 @@ ha-card { position: relative; padding: 16px; }
 }
 .menu-item.danger-confirm {
   background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent);
-  color: var(--error-color, #db4437);
+  color: color-mix(in srgb, var(--error-color, #db4437) 80%, var(--primary-text-color));
   font-weight: 600;
 }
 .menu-item[disabled] {
@@ -384,7 +459,7 @@ ha-card { position: relative; padding: 16px; }
   cursor: default;
 }
 
-/* calendar */
+/* card calendar strip */
 .cal { margin-top:16px; padding-top:12px; border-top:1px solid var(--divider-color, rgba(127,127,127,.25)); }
 .cal-strip { display:grid; grid-template-columns: repeat(7, 1fr); gap:4px; }
 .day {
@@ -398,8 +473,8 @@ ha-card { position: relative; padding: 16px; }
 .day.today .dd { color: var(--primary-color, #03a9f4); }
 .day.has { background: color-mix(in srgb, var(--primary-text-color) 5%, transparent); }
 .day.today.has { background: color-mix(in srgb, var(--primary-color, #03a9f4) 18%, transparent); }
-.dots { display:flex; gap:3px; flex-wrap:wrap; justify-content:center; min-height:8px; }
-.dot { width:8px; height:8px; border-radius:50%; flex:none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); box-sizing:border-box; }
+.dots { display:flex; gap:3px; flex-wrap:wrap; justify-content:center; align-items:center; min-height:8px; }
+.dot { width:8px; height:8px; border-radius:50%; flex:none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); box-sizing:border-box; display:inline-block; }
 .dot.light { box-shadow: inset 0 0 0 1.5px #333; }
 .dot.dark { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--primary-text-color, #000) 55%, transparent); }
 .dot.cancelled {
@@ -441,6 +516,607 @@ ha-card { position: relative; padding: 16px; }
 
 .empty { padding:8px 0; color: var(--secondary-text-color); }
 .warning { padding:16px; color: var(--error-color, #db4437); }
+
+/* ---------- page view ---------- */
+
+.page-root {
+  container-type: inline-size;
+  container-name: binspage;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--primary-text-color);
+}
+
+.page-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.col-left, .col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.page-root.is-wide .page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 20px;
+  align-items: start;
+}
+.page-root.is-wide .reminders-footer {
+  grid-column: 1 / -1;
+}
+
+@container binspage (min-width: 900px) {
+  .page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .reminders-footer {
+    grid-column: 1 / -1;
+  }
+}
+
+.page-section {
+  padding: 20px;
+  border-radius: var(--ha-card-border-radius, 12px);
+  box-sizing: border-box;
+}
+
+.page-root.is-narrow .page-section {
+  padding: 16px 14px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--secondary-text-color);
+  margin: 0 0 14px 0;
+  letter-spacing: .01em;
+}
+
+/* Next up hero */
+.hero-card {
+  border-top: 4px solid transparent;
+  overflow: hidden;
+}
+.hero-card.accent-amber {
+  border-top-color: var(--bins-orange);
+  background: color-mix(in srgb, var(--warning-color, #ffa600) 6%, var(--card-background-color, #fff));
+}
+.hero-card.accent-strong-amber {
+  border-top-color: var(--bins-orange);
+  background: color-mix(in srgb, var(--warning-color, #ffa600) 11%, var(--card-background-color, #fff));
+}
+.hero-card.accent-green {
+  border-top-color: var(--bins-green);
+  background: color-mix(in srgb, var(--bins-green) 7%, var(--card-background-color, #fff));
+}
+.hero-card.accent-red {
+  border-top-color: var(--error-color, #db4437);
+  background: color-mix(in srgb, var(--error-color, #db4437) 8%, var(--card-background-color, #fff));
+}
+.hero-card.accent-neutral {
+  border-top-color: color-mix(in srgb, var(--primary-text-color) 16%, transparent);
+}
+
+.hero-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+@container binspage (min-width: 520px) {
+  .hero-body {
+    flex-direction: row;
+    text-align: left;
+    align-items: center;
+    gap: 24px;
+  }
+}
+.page-root.is-medium .hero-body,
+.page-root.is-wide .hero-body {
+  flex-direction: row;
+  text-align: left;
+  align-items: center;
+  gap: 24px;
+}
+
+.hero-bins {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  max-width: 100%;
+}
+.hero-bin {
+  position: relative;
+  width: 136px;
+  transition: transform .2s ease;
+  flex-shrink: 1;
+}
+.hero-bins.two .hero-bin {
+  width: 112px;
+}
+.hero-bins.overlap .hero-bin {
+  width: 96px;
+}
+.hero-bins.overlap .hero-bin + .hero-bin {
+  margin-left: -24px;
+}
+.page-root.is-narrow .hero-bin {
+  width: 124px;
+}
+.page-root.is-narrow .hero-bins.two .hero-bin {
+  width: 102px;
+}
+.page-root.is-narrow .hero-bins.overlap .hero-bin {
+  width: 88px;
+}
+.hero-bin .badge {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  top: -2px;
+  right: -2px;
+}
+
+.hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-headline {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--primary-text-color);
+  word-break: break-word;
+}
+.page-root.is-narrow .hero-headline {
+  font-size: 23px;
+}
+
+.hero-subtitle {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--secondary-text-color);
+}
+@container binspage (min-width: 520px) {
+  .hero-subtitle { justify-content: flex-start; }
+}
+.page-root.is-medium .hero-subtitle,
+.page-root.is-wide .hero-subtitle {
+  justify-content: flex-start;
+}
+
+.hero-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--secondary-text-color);
+}
+.accent-amber .hero-icon,
+.accent-strong-amber .hero-icon {
+  color: color-mix(in srgb, var(--bins-orange) 80%, var(--primary-text-color));
+}
+.accent-green .hero-icon {
+  color: color-mix(in srgb, var(--bins-green) 80%, var(--primary-text-color));
+}
+.accent-red .hero-icon {
+  color: color-mix(in srgb, var(--error-color, #db4437) 80%, var(--primary-text-color));
+}
+
+.hero-actions {
+  margin-top: 4px;
+  display: flex;
+  justify-content: center;
+}
+@container binspage (min-width: 520px) {
+  .hero-actions { justify-content: flex-start; }
+}
+.page-root.is-medium .hero-actions,
+.page-root.is-wide .hero-actions {
+  justify-content: flex-start;
+}
+
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 10px 22px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+.hero-btn.primary {
+  background: #237d35;
+  border: 2px solid var(--bins-green);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(46, 158, 68, 0.28);
+}
+.hero-btn.primary:hover {
+  background: #1d6b2d;
+  transform: translateY(-1px);
+}
+.hero-btn.primary:active {
+  transform: scale(0.98);
+}
+.hero-btn.secondary {
+  background: color-mix(in srgb, var(--primary-text-color) 7%, transparent);
+  border: 1px solid var(--divider-color, rgba(127,127,127,.3));
+  color: var(--primary-text-color);
+}
+.hero-btn.secondary:hover {
+  background: color-mix(in srgb, var(--primary-text-color) 12%, transparent);
+}
+.hero-btn:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bins-green) 65%, transparent);
+}
+.hero-btn[disabled] {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+@keyframes heroSuccessBounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+.hero-bounce {
+  animation: heroSuccessBounce 0.38s ease-out;
+}
+
+/* Your bins in page view */
+.page-bins {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+.page-root.is-narrow .page-bins {
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+.page-bins .bin {
+  padding: 14px 10px 12px;
+  min-height: 48px;
+}
+.page-bins .bin:hover {
+  transform: translateY(-2px);
+}
+.page-bins .bin:active {
+  transform: scale(.98);
+}
+.page-bins .s-tomorrow .label,
+.page-bins .s-today .label {
+  color: color-mix(in srgb, var(--warning-color, #ffa600) 48%, var(--primary-text-color));
+}
+.page-bins .s-out .label,
+.page-bins .s-collected .label {
+  color: color-mix(in srgb, var(--success-color, #43a047) 58%, var(--primary-text-color));
+}
+.page-bins .s-forgotten .label,
+.page-bins .cancelled-line {
+  color: color-mix(in srgb, var(--error-color, #db4437) 68%, var(--primary-text-color));
+}
+
+/* Month calendar */
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.cal-header .section-title {
+  margin: 0;
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cal-month-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary-text-color);
+  margin-right: 4px;
+  min-width: 115px;
+  text-align: right;
+}
+.page-root.is-narrow .cal-month-label {
+  font-size: 14px;
+  min-width: 0;
+}
+.cal-nav-btn, .cal-today-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--divider-color, rgba(127,127,127,.25));
+  background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+  color: var(--primary-text-color);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+.cal-nav-btn:hover, .cal-today-btn:hover {
+  background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+}
+.cal-nav-btn:focus-visible, .cal-today-btn:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bins-green) 60%, transparent);
+}
+
+.cal-grid-wrap {
+  position: relative;
+}
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+.cal-wd {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--secondary-text-color);
+  padding: 4px 0;
+}
+.cal-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.cal-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 46px;
+  padding: 6px 2px 5px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: var(--primary-text-color);
+  font: inherit;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: none;
+  user-select: none;
+  transition: background .15s ease, border-color .15s ease;
+}
+.cal-day.empty {
+  cursor: default;
+  pointer-events: none;
+}
+.cal-day:not(.empty):hover {
+  background: color-mix(in srgb, var(--primary-text-color) 9%, transparent);
+}
+.cal-day:focus-visible {
+  box-shadow: 0 0 0 2.5px var(--bins-green);
+  z-index: 2;
+}
+.cal-day.next-week {
+  background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+  border-color: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+}
+.cal-day.has-events {
+  background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+}
+.cal-day.next-week.has-events {
+  background: color-mix(in srgb, var(--bins-green) 10%, transparent);
+}
+.cal-day.today {
+  border-color: var(--bins-orange);
+  background: color-mix(in srgb, var(--bins-orange) 14%, transparent);
+}
+.cal-day.selected {
+  border-color: var(--bins-green);
+  background: color-mix(in srgb, var(--bins-green) 16%, transparent);
+}
+.cal-num {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--primary-text-color);
+}
+.cal-day.today .cal-num,
+.cal-day.next-week .cal-num {
+  font-weight: 700;
+}
+.cal-day .dots {
+  gap: 2px;
+  min-height: 9px;
+}
+.cal-day .dot {
+  width: 7px;
+  height: 7px;
+}
+.dot-more {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--secondary-text-color);
+}
+
+/* Day popover */
+.cal-popover {
+  position: absolute;
+  z-index: 90;
+  box-sizing: border-box;
+  background: var(--card-background-color, #fff);
+  color: var(--primary-text-color);
+  border: 1px solid var(--divider-color, rgba(127,127,127,.35));
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: calc(100% - 8px);
+}
+.pop-date {
+  font-weight: 600;
+  color: var(--primary-text-color);
+}
+.pop-bin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Coming up list */
+.coming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.coming-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+  font-size: 14px;
+}
+.coming-date {
+  font-weight: 600;
+  color: var(--primary-text-color);
+}
+.coming-rel {
+  color: var(--secondary-text-color);
+  font-size: 13px;
+}
+.coming-dash {
+  color: var(--secondary-text-color);
+}
+.coming-bins {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.coming-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--primary-text-color);
+}
+.coming-item em {
+  font-style: italic;
+  color: var(--secondary-text-color);
+}
+
+/* Reminders footer */
+.reminders-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--secondary-text-color);
+  text-align: center;
+}
+.change-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--bins-green) 65%, var(--primary-text-color));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  outline: none;
+}
+.change-link:hover {
+  background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+}
+.change-link:focus-visible {
+  box-shadow: 0 0 0 2.5px var(--bins-green);
+}
+
+/* Empty state */
+.page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 20px;
+  gap: 14px;
+}
+.empty-art {
+  width: 112px;
+}
+.empty-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-text-color);
+}
+.empty-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--secondary-text-color);
+  max-width: 360px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bin, .bin-art, .hero-bin, .hero-btn, .cal-day, .cal-nav-btn, .cal-today-btn, .page-bins .bin {
+    transition: none !important;
+  }
+  .s-tomorrow.due, .s-today, .hero-bounce {
+    animation: none !important;
+  }
+  .page-bins .bin:hover, .hero-btn.primary:hover, .bin:active, .hero-btn.primary:active {
+    transform: none !important;
+  }
+}
 `;
 
 /* ---------- card ---------- */
@@ -455,6 +1131,19 @@ class BinsOutCard extends HTMLElement {
     this._confirmTimer = null;
     this._docPointerHandler = null;
     this._menuKeyHandler = null;
+
+    // Page view state
+    const now = new Date();
+    this._calYear = now.getFullYear();
+    this._calMonth = now.getMonth();
+    this._calCacheKey = null;
+    this._calEvents = null;
+    this._openCalDate = null;
+    this._calPopoverDocHandler = null;
+    this._calPopoverKeyHandler = null;
+    this._heroBounceUntil = 0;
+    this._widthBand = "narrow";
+    this._resizeObserver = null;
   }
 
   static getStubConfig() {
@@ -465,12 +1154,46 @@ class BinsOutCard extends HTMLElement {
     return document.createElement("bins-out-card-editor");
   }
 
+  connectedCallback() {
+    if (typeof ResizeObserver === "function" && !this._resizeObserver) {
+      this._resizeObserver = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect?.width ?? this.getBoundingClientRect().width;
+        this._applyWidthBand(w);
+      });
+      this._resizeObserver.observe(this);
+    }
+    this._applyWidthBand(this.getBoundingClientRect().width);
+  }
+
+  disconnectedCallback() {
+    this._closeMenu();
+    this._closeCalPopover();
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = null;
+    }
+  }
+
+  _applyWidthBand(width) {
+    if (!width) return;
+    const band = width >= 900 ? "wide" : width >= 700 ? "medium" : "narrow";
+    this._widthBand = band;
+    const root = this.shadowRoot && this.shadowRoot.querySelector(".page-root");
+    if (root) {
+      root.classList.toggle("is-narrow", band === "narrow");
+      root.classList.toggle("is-medium", band === "medium");
+      root.classList.toggle("is-wide", band === "wide");
+    }
+  }
+
   setConfig(config) {
     if (!config || typeof config !== "object") throw new Error("Invalid configuration");
     const days = config.days === undefined ? 14 : Number(config.days);
     if (!Number.isFinite(days) || days < 7 || days > 35) throw new Error("days must be between 7 and 35");
     const layout = config.layout || "auto";
     if (!["auto", "row", "list"].includes(layout)) throw new Error('layout must be "auto", "row" or "list"');
+    const view = config.view || "card";
+    if (!["card", "page"].includes(view)) throw new Error('view must be "card" or "page"');
     if (config.entity !== undefined && typeof config.entity !== "string") throw new Error("entity must be a string");
     this._config = {
       entity: config.entity || DEFAULT_ENTITY,
@@ -478,6 +1201,7 @@ class BinsOutCard extends HTMLElement {
       show_calendar: config.show_calendar !== false,
       days: Math.round(days),
       layout,
+      view,
     };
     this._lastKey = null;
     if (this._hass) this._render();
@@ -489,11 +1213,8 @@ class BinsOutCard extends HTMLElement {
   }
 
   getCardSize() {
+    if (this._config && this._config.view === "page") return 10;
     return this._config && this._config.show_calendar ? 5 : 3;
-  }
-
-  disconnectedCallback() {
-    this._closeMenu();
   }
 
   _render() {
@@ -501,12 +1222,13 @@ class BinsOutCard extends HTMLElement {
     const stateObj = this._hass.states[this._config.entity];
     // Re-render only when the entity changes, or once a day (so "today" moves on).
     const key = stateObj
-      ? `${stateObj.last_updated}|${isoLocal(new Date())}`
-      : "missing";
+      ? `${this._config.view}|${stateObj.last_updated}|${isoLocal(new Date())}`
+      : `${this._config.view}|missing`;
     if (key === this._lastKey) return;
     this._lastKey = key;
 
     this._closeMenu();
+    this._closeCalPopover();
 
     if (!stateObj) {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style>
@@ -518,6 +1240,11 @@ class BinsOutCard extends HTMLElement {
     const bins = Array.isArray(a.bins) ? a.bins : [];
     this._bins = bins;
     const cfg = this._config;
+
+    if (cfg.view === "page") {
+      this._renderPage(stateObj, a, bins);
+      return;
+    }
 
     let banner = "";
     if (a.forgotten_message) banner = `<div class="banner err" role="alert"><span class="icon">⚠️</span><span>${esc(a.forgotten_message)}</span></div>`;
@@ -536,19 +1263,731 @@ class BinsOutCard extends HTMLElement {
 
     const layoutClass = cfg.layout === "auto" ? "" : cfg.layout;
     const binsHtml = bins.length
-      ? `<div class="bins ${layoutClass}">${bins.map((b, i) => this._binHtml(b, i)).join("")}</div>`
+      ? `<div class="bins ${layoutClass}">${bins.map((b, i) => this._binHtml(b, i, false)).join("")}</div>`
       : `<div class="empty">No bins configured yet.</div>`;
 
     const cal = cfg.show_calendar && bins.length ? this._calendarHtml(bins, cfg.days) : "";
 
     this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>${header}${banner}${binsHtml}${cal}</ha-card>`;
-    this._attachHandlers();
+    this._attachBinHandlers();
   }
 
-  _binHtml(bin, idx) {
+  /* ---------- page view rendering ---------- */
+
+  _renderPage(stateObj, a, bins) {
+    const w = this.getBoundingClientRect().width;
+    if (w) {
+      this._widthBand = w >= 900 ? "wide" : w >= 700 ? "medium" : "narrow";
+    }
+    const bandClass = `is-${this._widthBand}`;
+
+    if (!bins.length) {
+      const sampleBin = { container: "wheelie_bin", colour_hex: "#2e9e44", status: "upcoming" };
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style>
+        <div class="page-root ${bandClass}">
+          <ha-card class="page-section page-empty">
+            <div class="empty-art" role="img" aria-label="Wheelie bin">${binSvg(sampleBin)}</div>
+            <h2 class="empty-title">No bins yet</h2>
+            <p class="empty-sub">Add your bins in Bins Out settings to see collection days and get reminders.</p>
+            <button type="button" class="hero-btn primary" id="setupBinsBtn">Set up your bins</button>
+          </ha-card>
+        </div>`;
+      const setupBtn = this.shadowRoot.getElementById("setupBinsBtn");
+      if (setupBtn) {
+        setupBtn.addEventListener("click", () => navigateToSettings());
+      }
+      return;
+    }
+
+    if (!this._calMonthChosen) {
+      this._calMonthChosen = true;
+      const firstDate = bins
+        .map((b) => b.next_collection || (b.upcoming || [])[0])
+        .filter(Boolean)
+        .sort()[0];
+      const first = parseLocalDate(firstDate);
+      if (first && first.getFullYear() * 12 + first.getMonth() > this._calYear * 12 + this._calMonth) {
+        this._calYear = first.getFullYear();
+        this._calMonth = first.getMonth();
+      }
+    }
+
+    this._ensureMonthEvents(stateObj);
+
+    const heroHtml = this._heroSectionHtml(a, bins);
+    const yourBinsHtml = `
+      <ha-card class="page-section bins-section">
+        <div class="section-title">Your bins</div>
+        <div class="page-bins">${bins.map((b, i) => this._binHtml(b, i, true)).join("")}</div>
+      </ha-card>`;
+    const calSectionHtml = this._monthCalendarSectionHtml();
+    const comingUpHtml = this._comingUpSectionHtml(bins);
+    const remindersHtml = this._remindersFooterHtml(a);
+
+    this.shadowRoot.innerHTML = `<style>${STYLE}</style>
+      <div class="page-root ${bandClass}">
+        <div class="page-grid">
+          <div class="col-left">
+            ${heroHtml}
+            ${yourBinsHtml}
+          </div>
+          <div class="col-right">
+            ${calSectionHtml}
+            ${comingUpHtml}
+          </div>
+          ${remindersHtml}
+        </div>
+      </div>`;
+
+    this._attachBinHandlers();
+    this._attachPageHandlers();
+  }
+
+  _getHeroBins(a, bins) {
+    const nextNames = Array.isArray(a.next_bins) ? a.next_bins : [];
+    let heroBins = nextNames.map((n) => bins.find((b) => b.name === n)).filter(Boolean);
+    if (!heroBins.length && bins.length) {
+      const firstWithDays = bins.find((b) => b.days_until !== null && b.days_until !== undefined);
+      if (firstWithDays) {
+        heroBins = bins.filter((b) => b.days_until === firstWithDays.days_until);
+      } else {
+        heroBins = [bins[0]];
+      }
+    }
+    return heroBins;
+  }
+
+  _heroSectionHtml(a, bins) {
+    const heroBins = this._getHeroBins(a, bins);
+    this._heroBins = heroBins;
+
+    let headline = "";
+    let subtitle = "";
+    let accent = "neutral";
+    let icon = "calendar";
+    let action = null;
+
+    const forgottenBins = heroBins.filter((b) => b.status === "forgotten");
+    const todayBins = heroBins.filter((b) => b.status === "today");
+    const tomorrowBins = heroBins.filter((b) => b.status === "tomorrow");
+    const allOut = heroBins.length > 0 && heroBins.every((b) => b.status === "out");
+    const anyCollected = heroBins.some((b) => b.status === "collected");
+
+    if (forgottenBins.length) {
+      headline = `Missed: ${joinSpokenNames(forgottenBins)}`;
+      subtitle = a.forgotten_message || "";
+      accent = "red";
+      icon = "warning";
+      action = "mark_out";
+    } else if (todayBins.length) {
+      headline = `Put the ${joinSpokenNames(todayBins)} out now`;
+      subtitle = a.morning_message || "";
+      accent = "strong-amber";
+      icon = "sunrise";
+      action = "mark_out";
+    } else if (tomorrowBins.length) {
+      headline = `Tonight: ${joinSpokenNames(tomorrowBins)} out`;
+      subtitle = a.tonight_message || "";
+      accent = "amber";
+      icon = "moon";
+      action = "mark_out";
+    } else if (allOut) {
+      headline = "All out. Nice one!";
+      const nextDt = parseLocalDate(heroBins[0]?.next_collection);
+      const rel = relDaysPage(heroBins[0]?.days_until);
+      subtitle = nextDt ? `Collection ${fmtDate(nextDt)}${rel ? " · " + rel : ""}` : "";
+      accent = "green";
+      icon = "tick";
+      action = "undo";
+    } else if (anyCollected) {
+      headline = "Collected: bring it back in";
+      subtitle = "";
+      accent = "green";
+      icon = "tick";
+      action = null;
+    } else {
+      headline = `Next: ${joinSpokenNames(heroBins)}`;
+      const nextDt = parseLocalDate(heroBins[0]?.next_collection);
+      const rel = inDays(heroBins[0]?.days_until);
+      subtitle = nextDt ? `${fmtDate(nextDt)}${rel ? " · " + rel : ""}` : "No upcoming collections";
+      accent = "neutral";
+      icon = "calendar";
+      action = null;
+    }
+
+    const binsCountClass = heroBins.length >= 3 ? "overlap" : heroBins.length === 2 ? "two" : "one";
+    const picturesHtml = heroBins.map((b) => {
+      const picBin = b.status === "upcoming" ? { ...b, status: "tomorrow" } : b;
+      const aria = b.spoken_name || b.name;
+      return `<div class="hero-bin" role="img" aria-label="${esc(aria)}">${binSvg(picBin)}${badgeFor(b.status)}</div>`;
+    }).join("");
+
+    const subtitleHtml = subtitle
+      ? `<div class="hero-subtitle" role="${forgottenBins.length ? "alert" : "status"}">
+           <span class="hero-icon">${pageIconSvg(icon)}</span>
+           <span>${esc(subtitle)}</span>
+         </div>`
+      : "";
+
+    let actionHtml = "";
+    if (action === "mark_out") {
+      const targets = heroBins.filter((b) => !b.put_out && b.entities && b.entities.put_out);
+      const canAct = targets.length > 0 || heroBins.some((b) => b.entities && b.entities.put_out);
+      actionHtml = `
+        <div class="hero-actions">
+          <button type="button" class="hero-btn primary" id="heroActionBtn" data-action="mark_out" ${canAct ? "" : "disabled"}>
+            ${pageIconSvg("tick")}
+            <span class="btn-text">Mark as out</span>
+          </button>
+        </div>`;
+    } else if (action === "undo") {
+      const canAct = heroBins.some((b) => b.entities && b.entities.put_out);
+      actionHtml = `
+        <div class="hero-actions">
+          <button type="button" class="hero-btn secondary" id="heroActionBtn" data-action="undo" ${canAct ? "" : "disabled"}>
+            ${pageIconSvg("undo")}
+            <span class="btn-text">Undo</span>
+          </button>
+        </div>`;
+    }
+
+    const bounceClass = Date.now() < this._heroBounceUntil ? "hero-bounce" : "";
+
+    return `
+      <ha-card class="page-section hero-card accent-${accent} ${bounceClass}">
+        <div class="section-title">Next up</div>
+        <div class="hero-body">
+          <div class="hero-bins ${binsCountClass}">${picturesHtml}</div>
+          <div class="hero-info">
+            <h2 class="hero-headline">${esc(headline)}</h2>
+            ${subtitleHtml}
+            ${actionHtml}
+          </div>
+        </div>
+      </ha-card>`;
+  }
+
+  _monthCalendarSectionHtml() {
+    const monthLabel = `${MONTH_FULL_NAMES[this._calMonth]} ${this._calYear}`;
+    return `
+      <ha-card class="page-section cal-section">
+        <div class="cal-header">
+          <div class="section-title">Calendar</div>
+          <div class="cal-nav">
+            <span class="cal-month-label" id="calMonthLabel">${esc(monthLabel)}</span>
+            <button type="button" class="cal-nav-btn" id="calPrevBtn" aria-label="Previous month">${pageIconSvg("chevronLeft")}</button>
+            <button type="button" class="cal-today-btn" id="calTodayBtn">Today</button>
+            <button type="button" class="cal-nav-btn" id="calNextBtn" aria-label="Next month">${pageIconSvg("chevronRight")}</button>
+          </div>
+        </div>
+        <div class="cal-grid-wrap" id="calGridWrap">
+          ${this._monthCalendarInnerHtml()}
+        </div>
+      </ha-card>`;
+  }
+
+  _buildMonthDateMap() {
+    const bins = this._bins || [];
+    const byDate = new Map();
+    const seenKey = new Set();
+
+    const movedByBin = new Map();
+    for (const bin of bins) {
+      const m = {};
+      for (const [orig, dest] of Object.entries(bin.moved || {})) m[dest] = orig;
+      movedByBin.set(bin, m);
+    }
+
+    const addEntry = (dateStr, bin, { movedFrom = null, cancelled = false, estimated = false } = {}) => {
+      if (!dateStr) return;
+      const k = `${dateStr}|${bin.id || bin.name}|${cancelled ? "c" : "a"}`;
+      if (seenKey.has(k)) return;
+      seenKey.add(k);
+      if (!byDate.has(dateStr)) byDate.set(dateStr, []);
+      byDate.get(dateStr).push({ bin, movedFrom, cancelled, estimated });
+    };
+
+    if (Array.isArray(this._calEvents) && this._calEvents.length > 0) {
+      for (const ev of this._calEvents) {
+        const rawStart = ev.start?.date || ev.start?.dateTime || ev.start || "";
+        const dateStr = String(rawStart).slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
+        const summary = String(ev.summary || "").trim();
+        const isEst = summary.endsWith(" (estimated)");
+        const binName = isEst ? summary.slice(0, -12).trim() : summary;
+        const bin = bins.find((b) => b.name === binName)
+          || bins.find((b) => b.name.toLowerCase() === binName.toLowerCase());
+        if (!bin) continue;
+        if (Array.isArray(bin.cancelled) && bin.cancelled.includes(dateStr)) continue;
+        const movedFrom = movedByBin.get(bin)?.[dateStr] || null;
+        addEntry(dateStr, bin, { movedFrom, cancelled: false, estimated: isEst });
+      }
+    } else {
+      // Fallback: build from bins[].upcoming and bins[].estimated
+      for (const bin of bins) {
+        const movedFromMap = movedByBin.get(bin) || {};
+        const estSet = new Set(Array.isArray(bin.estimated) ? bin.estimated : []);
+        for (const d of bin.upcoming || []) {
+          addEntry(d, bin, {
+            movedFrom: movedFromMap[d] || null,
+            cancelled: false,
+            estimated: estSet.has(d),
+          });
+        }
+      }
+    }
+
+    // Cancelled collections are never calendar events: draw from bins[].cancelled
+    for (const bin of bins) {
+      for (const d of bin.cancelled || []) {
+        addEntry(d, bin, { movedFrom: null, cancelled: true, estimated: false });
+      }
+    }
+
+    // Keep bin order consistent with this._bins
+    const binOrder = new Map(bins.map((b, idx) => [b, idx]));
+    for (const entries of byDate.values()) {
+      entries.sort((a, b) => (binOrder.get(a.bin) ?? 99) - (binOrder.get(b.bin) ?? 99));
+    }
+
+    return byDate;
+  }
+
+  _monthCalendarInnerHtml() {
+    const year = this._calYear;
+    const month = this._calMonth;
+    const bins = this._bins || [];
+    const byDate = this._buildMonthDateMap();
+    this._lastMonthByDate = byDate;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+    const todayIso = isoLocal(today);
+
+    const firstDay = new Date(year, month, 1);
+    const numDays = new Date(year, month + 1, 0).getDate();
+    // Monday-first: Monday = 0 ... Sunday = 6
+    const startOffset = (firstDay.getDay() + 6) % 7;
+
+    let anyCancelledInMonth = false;
+    let anyEstimatedInMonth = false;
+    let anyMovedInMonth = false;
+
+    const cells = [];
+    for (let i = 0; i < startOffset; i++) {
+      cells.push(`<div class="cal-day empty" aria-hidden="true"></div>`);
+    }
+
+    for (let d = 1; d <= numDays; d++) {
+      const date = new Date(year, month, d);
+      const iso = isoLocal(date);
+      const diffDays = Math.round((date.getTime() - todayTime) / 86400000);
+      const entries = byDate.get(iso) || [];
+      const hasMoved = entries.some((e) => e.movedFrom);
+      if (hasMoved) anyMovedInMonth = true;
+      if (entries.some((e) => e.cancelled)) anyCancelledInMonth = true;
+      if (entries.some((e) => e.estimated)) anyEstimatedInMonth = true;
+
+      const labelParts = entries.map((e) => this._entryLabel(e));
+      const dayTitle = `${fmtDate(date)}${labelParts.length ? ": " + labelParts.join(", ") : ": no collections"}`;
+
+      const visibleDots = entries.slice(0, 4);
+      const extraCount = entries.length > 4 ? entries.length - 4 : 0;
+
+      const dotsHtml = visibleDots.map((e) => this._dotHtml(e)).join("")
+        + (extraCount > 0 ? `<span class="dot-more">+${extraCount}</span>` : "");
+
+      const isToday = iso === todayIso;
+      const isNextWeek = diffDays >= 1 && diffDays <= 7;
+      const isSelected = this._openCalDate === iso;
+
+      cells.push(`
+        <button type="button"
+                class="cal-day ${isToday ? "today" : ""} ${isNextWeek ? "next-week" : ""} ${entries.length ? "has-events" : ""} ${isSelected ? "selected" : ""}"
+                data-date="${iso}"
+                aria-label="${esc(dayTitle)}"
+                aria-expanded="${isSelected ? "true" : "false"}">
+          ${hasMoved ? `<span class="moved" aria-hidden="true"></span>` : ""}
+          <span class="cal-num">${d}</span>
+          <span class="dots" aria-hidden="true">${dotsHtml}</span>
+        </button>`);
+    }
+
+    const totalCells = startOffset + numDays;
+    const trailing = (7 - (totalCells % 7)) % 7;
+    for (let i = 0; i < trailing; i++) {
+      cells.push(`<div class="cal-day empty" aria-hidden="true"></div>`);
+    }
+
+    const legend = bins.map((b) => {
+      const c = safeColour(b.colour_hex);
+      return `<span><span class="dot ${toneClass(c)}" style="background:${c}"></span>${esc(b.name)}</span>`;
+    }).join("")
+      + (anyCancelledInMonth ? `<span><span class="dot cancelled" style="--dot-color:var(--secondary-text-color)"></span>Cancelled</span>` : "")
+      + (anyEstimatedInMonth ? `<span><span class="dot estimated" style="--dot-color:var(--secondary-text-color)"></span>Estimated</span>` : "")
+      + (anyMovedInMonth ? `<span><span class="moved" style="position:static"></span>Moved date</span>` : "");
+
+    const weekdaysHtml = WEEKDAY_MON.map((w) => `<div class="cal-wd">${w}</div>`).join("");
+
+    return `
+      <div class="cal-weekdays" aria-hidden="true">${weekdaysHtml}</div>
+      <div class="cal-month-grid">${cells.join("")}</div>
+      <div class="legend">${legend}</div>`;
+  }
+
+  _dotHtml(e) {
+    const c = safeColour(e.bin.colour_hex);
+    if (e.cancelled) {
+      return `<span class="dot cancelled ${toneClass(c)}" style="--dot-color:${c}"></span>`;
+    }
+    if (e.estimated) {
+      return `<span class="dot estimated ${toneClass(c)}" style="--dot-color:${c}"></span>`;
+    }
+    return `<span class="dot ${toneClass(c)}" style="background:${c}"></span>`;
+  }
+
+  _entryLabel(e) {
+    let t = e.bin.name;
+    if (e.cancelled) {
+      t += " (cancelled)";
+    } else if (e.estimated) {
+      t += " (estimated)";
+    } else if (e.movedFrom) {
+      const o = parseLocalDate(e.movedFrom);
+      t += ` (moved from ${o ? fmtDate(o) : e.movedFrom})`;
+    }
+    return t;
+  }
+
+  _ensureMonthEvents(stateObj) {
+    if (!this._hass || typeof this._hass.callApi !== "function") return;
+    const stateUpdated = stateObj ? stateObj.last_updated : "";
+    const ym = `${this._calYear}-${String(this._calMonth + 1).padStart(2, "0")}`;
+    const cacheKey = `${stateUpdated}|${ym}`;
+    if (this._calCacheKey === cacheKey) return;
+    this._calCacheKey = cacheKey;
+    this._calEvents = null;
+
+    const startIso = `${this._calYear}-${String(this._calMonth + 1).padStart(2, "0")}-01T00:00:00Z`;
+    const nextYear = this._calMonth === 11 ? this._calYear + 1 : this._calYear;
+    const nextMonth = this._calMonth === 11 ? 0 : this._calMonth + 1;
+    const endIso = `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}-01T00:00:00Z`;
+
+    let req;
+    try {
+      req = this._hass.callApi(
+        "GET",
+        `calendars/calendar.bins_out_collections?start=${startIso}&end=${endIso}`,
+      );
+    } catch (_err) {
+      return;
+    }
+    if (!req || typeof req.then !== "function") return;
+
+    req.then(
+      (events) => {
+        if (this._calCacheKey !== cacheKey) return;
+        this._calEvents = Array.isArray(events) ? events : null;
+        this._refreshMonthGridDom();
+      },
+      () => {
+        // Fallback silently to bins[].upcoming on failure
+        if (this._calCacheKey !== cacheKey) return;
+        this._calEvents = null;
+      },
+    );
+  }
+
+  _refreshMonthGridDom() {
+    if (!this.shadowRoot) return;
+    const labelEl = this.shadowRoot.getElementById("calMonthLabel");
+    if (labelEl) {
+      labelEl.textContent = `${MONTH_FULL_NAMES[this._calMonth]} ${this._calYear}`;
+    }
+    const wrap = this.shadowRoot.getElementById("calGridWrap");
+    if (!wrap) return;
+    const openDate = this._openCalDate;
+    this._closeCalPopover();
+    wrap.innerHTML = this._monthCalendarInnerHtml();
+    this._attachCalendarDayHandlers();
+    if (openDate) {
+      const btn = wrap.querySelector(`.cal-day[data-date="${openDate}"]`);
+      if (btn) this._openCalPopover(openDate, btn);
+    }
+  }
+
+  _comingUpSectionHtml(bins) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+    const todayIso = isoLocal(today);
+
+    const byDate = new Map();
+    for (const bin of bins) {
+      const estSet = new Set(Array.isArray(bin.estimated) ? bin.estimated : []);
+      const cancSet = new Set(Array.isArray(bin.cancelled) ? bin.cancelled : []);
+      for (const d of bin.upcoming || []) {
+        if (d < todayIso || cancSet.has(d)) continue;
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d).push({ bin, estimated: estSet.has(d) });
+      }
+    }
+
+    const nextDates = Array.from(byDate.keys()).sort().slice(0, 5);
+
+    const rowsHtml = nextDates.length
+      ? nextDates.map((d) => {
+          const dt = parseLocalDate(d);
+          const diff = dt ? Math.round((dt.getTime() - todayTime) / 86400000) : null;
+          const rel = relDaysPage(diff);
+          const entries = byDate.get(d) || [];
+          const binsHtml = entries.map((e, idx) => {
+            const c = safeColour(e.bin.colour_hex);
+            const dot = e.estimated
+              ? `<span class="dot estimated ${toneClass(c)}" style="--dot-color:${c}" aria-hidden="true"></span>`
+              : `<span class="dot ${toneClass(c)}" style="background:${c}" aria-hidden="true"></span>`;
+            const comma = idx < entries.length - 1 ? "," : "";
+            const namePart = e.estimated
+              ? `<em>${esc(e.bin.name)} (estimated)${comma}</em>`
+              : `<span>${esc(e.bin.name)}${comma}</span>`;
+            return `<span class="coming-item">${dot}${namePart}</span>`;
+          }).join(" ");
+          return `
+            <div class="coming-row">
+              <span class="coming-date">${esc(dt ? fmtDate(dt) : d)}</span>
+              ${rel ? `<span class="coming-rel">· ${esc(rel)}</span>` : ""}
+              <span class="coming-dash">—</span>
+              <span class="coming-bins">${binsHtml}</span>
+            </div>`;
+        }).join("")
+      : `<div class="empty">No upcoming collections scheduled.</div>`;
+
+    return `
+      <ha-card class="page-section coming-section">
+        <div class="section-title">Coming up</div>
+        <div class="coming-list">${rowsHtml}</div>
+      </ha-card>`;
+  }
+
+  _remindersFooterHtml(a) {
+    const eve = fmtShortTime(a.evening_time, "19:00");
+    const morn = fmtShortTime(a.morning_time, "06:30");
+    return `
+      <div class="reminders-footer">
+        <span>Reminders at <strong>${esc(eve)}</strong> the night before and <strong>${esc(morn)}</strong> on the day.</span>
+        <a href="${SETTINGS_PATH}" class="change-link" id="changeRemindersLink">Change</a>
+      </div>`;
+  }
+
+  _attachPageHandlers() {
+    const root = this.shadowRoot;
+    if (!root) return;
+
+    // Hero primary / undo button
+    const heroBtn = root.getElementById("heroActionBtn");
+    if (heroBtn) {
+      heroBtn.addEventListener("click", () => {
+        const action = heroBtn.dataset.action;
+        const heroBins = this._heroBins || [];
+        this._heroBounceUntil = Date.now() + 700;
+        const heroCard = heroBtn.closest(".hero-card");
+        if (heroCard) {
+          heroCard.classList.remove("hero-bounce");
+          void heroCard.offsetWidth;
+          heroCard.classList.add("hero-bounce");
+        }
+        const textEl = heroBtn.querySelector(".btn-text");
+        if (action === "mark_out") {
+          if (textEl) textEl.textContent = "Marked as out ✓";
+          let targets = heroBins.filter((b) => !b.put_out && b.entities && b.entities.put_out);
+          if (!targets.length) {
+            targets = heroBins.filter((b) => b.entities && b.entities.put_out);
+          }
+          for (const b of targets) {
+            this._hass.callService("switch", "turn_on", { entity_id: b.entities.put_out });
+          }
+        } else if (action === "undo") {
+          if (textEl) textEl.textContent = "Undone";
+          const targets = heroBins.filter((b) => b.entities && b.entities.put_out);
+          for (const b of targets) {
+            this._hass.callService("switch", "turn_off", { entity_id: b.entities.put_out });
+          }
+        }
+      });
+    }
+
+    // Calendar month controls
+    const prevBtn = root.getElementById("calPrevBtn");
+    const nextBtn = root.getElementById("calNextBtn");
+    const todayBtn = root.getElementById("calTodayBtn");
+
+    if (prevBtn) {
+      prevBtn.addEventListener("click", () => {
+        this._closeCalPopover();
+        if (this._calMonth === 0) {
+          this._calMonth = 11;
+          this._calYear -= 1;
+        } else {
+          this._calMonth -= 1;
+        }
+        const stateObj = this._hass?.states?.[this._config.entity];
+        this._ensureMonthEvents(stateObj);
+        this._refreshMonthGridDom();
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        this._closeCalPopover();
+        if (this._calMonth === 11) {
+          this._calMonth = 0;
+          this._calYear += 1;
+        } else {
+          this._calMonth += 1;
+        }
+        const stateObj = this._hass?.states?.[this._config.entity];
+        this._ensureMonthEvents(stateObj);
+        this._refreshMonthGridDom();
+      });
+    }
+    if (todayBtn) {
+      todayBtn.addEventListener("click", () => {
+        this._closeCalPopover();
+        const now = new Date();
+        this._calYear = now.getFullYear();
+        this._calMonth = now.getMonth();
+        const stateObj = this._hass?.states?.[this._config.entity];
+        this._ensureMonthEvents(stateObj);
+        this._refreshMonthGridDom();
+      });
+    }
+
+    this._attachCalendarDayHandlers();
+
+    // Change reminders link
+    const changeLink = root.getElementById("changeRemindersLink");
+    if (changeLink) {
+      changeLink.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        navigateToSettings();
+      });
+    }
+  }
+
+  _attachCalendarDayHandlers() {
+    const wrap = this.shadowRoot && this.shadowRoot.getElementById("calGridWrap");
+    if (!wrap) return;
+    wrap.querySelectorAll(".cal-day[data-date]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const dateStr = btn.dataset.date;
+        if (this._openCalDate === dateStr) {
+          this._closeCalPopover();
+        } else {
+          this._openCalPopover(dateStr, btn);
+        }
+      });
+    });
+  }
+
+  _closeCalPopover() {
+    if (this._calPopoverDocHandler) {
+      window.removeEventListener("pointerdown", this._calPopoverDocHandler, true);
+      this._calPopoverDocHandler = null;
+    }
+    if (this._calPopoverKeyHandler) {
+      window.removeEventListener("keydown", this._calPopoverKeyHandler, true);
+      this._calPopoverKeyHandler = null;
+    }
+    if (this.shadowRoot) {
+      this.shadowRoot.querySelectorAll(".cal-popover").forEach((el) => el.remove());
+      this.shadowRoot.querySelectorAll(".cal-day.selected").forEach((el) => {
+        el.classList.remove("selected");
+        el.setAttribute("aria-expanded", "false");
+      });
+    }
+    this._openCalDate = null;
+  }
+
+  _openCalPopover(dateStr, dayBtn) {
+    this._closeCalPopover();
+    const wrap = this.shadowRoot && this.shadowRoot.getElementById("calGridWrap");
+    if (!wrap || !dayBtn) return;
+
+    this._openCalDate = dateStr;
+    dayBtn.classList.add("selected");
+    dayBtn.setAttribute("aria-expanded", "true");
+
+    const dt = parseLocalDate(dateStr);
+    const dateLabel = dt ? fmtDate(dt) : dateStr;
+    const entries = (this._lastMonthByDate && this._lastMonthByDate.get(dateStr)) || [];
+
+    const pop = document.createElement("div");
+    pop.className = "cal-popover";
+    pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-label", `${dateLabel} collections`);
+
+    if (entries.length) {
+      const itemsHtml = entries.map((e) => {
+        const dot = this._dotHtml(e);
+        return `<span class="pop-bin">${dot}<span>${esc(this._entryLabel(e))}</span></span>`;
+      }).join(", ");
+      pop.innerHTML = `<span class="pop-date">${esc(dateLabel)}:</span> ${itemsHtml}`;
+    } else {
+      pop.innerHTML = `<span class="pop-date">${esc(dateLabel)}:</span> No collections`;
+    }
+
+    wrap.appendChild(pop);
+
+    // Position popover near dayBtn within wrap
+    const wrapRect = wrap.getBoundingClientRect();
+    const btnRect = dayBtn.getBoundingClientRect();
+    const popWidth = pop.offsetWidth || 200;
+    const popHeight = pop.offsetHeight || 42;
+
+    const centerX = btnRect.left - wrapRect.left + btnRect.width / 2;
+    let left = centerX - popWidth / 2;
+    left = Math.max(4, Math.min(wrapRect.width - popWidth - 4, left));
+
+    let top = btnRect.bottom - wrapRect.top + 6;
+    if (top + popHeight > wrapRect.height && btnRect.top - wrapRect.top > popHeight + 8) {
+      top = btnRect.top - wrapRect.top - popHeight - 6;
+    }
+
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+
+    this._calPopoverKeyHandler = (ev) => {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this._closeCalPopover();
+        dayBtn.focus();
+      }
+    };
+    window.addEventListener("keydown", this._calPopoverKeyHandler, true);
+
+    this._calPopoverDocHandler = (ev) => {
+      const path = ev.composedPath();
+      if (!path.includes(pop) && !path.includes(dayBtn)) {
+        this._closeCalPopover();
+      }
+    };
+    setTimeout(() => {
+      if (this._openCalDate === dateStr) {
+        window.addEventListener("pointerdown", this._calPopoverDocHandler, true);
+      }
+    }, 30);
+  }
+
+  /* ---------- bin tile & card strip ---------- */
+
+  _binHtml(bin, idx, isPage = false) {
     const status = bin.status || "none";
     const next = parseLocalDate(bin.next_collection);
-    const when = next ? `${fmtDate(next)} · ${inDays(bin.days_until)}` : "";
+    const rel = inDays(bin.days_until);
+    const when = next ? (isPage ? fmtDate(next) : `${fmtDate(next)} · ${rel}`) : "";
+    const freq = isPage ? howOftenText(bin) : "";
     const ents = bin.entities || {};
     const canToggle = TOGGLE_STATUSES.has(status) && !!ents.put_out;
     const canInfo = !!ents.status;
@@ -567,11 +2006,13 @@ class BinsOutCard extends HTMLElement {
       dateLine = `<div class="when">${sync}</div>`;
     }
 
+    const freqLine = freq ? `<div class="freq">${esc(freq)}</div>` : "";
+
     const cancelledLine = cancelledText
       ? `<div class="cancelled-line">${esc(cancelledText)}</div>`
       : "";
 
-    const aria = `${bin.name}: ${label}${when ? ", " + when : ""}${cancelledText ? ", " + cancelledText : ""}${bin.source === "calendar" ? ", automatic calendar" : ""}${canToggle ? ". Tap to toggle put out." : ""}. Hold for options.`;
+    const aria = `${bin.name}: ${label}${when ? ", " + when : ""}${freq ? ", " + freq : ""}${cancelledText ? ", " + cancelledText : ""}${bin.source === "calendar" ? ", automatic calendar" : ""}${canToggle ? ". Tap to toggle put out." : ""}. Hold for options.`;
 
     return `
       <div class="bin s-${esc(status)} ${bin.due ? "due" : ""} ${disabled ? "disabled" : ""}"
@@ -582,6 +2023,7 @@ class BinsOutCard extends HTMLElement {
           <div class="name">${esc(bin.name)}</div>
           <div class="label">${esc(label)}</div>
           ${dateLine}
+          ${freqLine}
           ${cancelledLine}
         </div>
       </div>`;
@@ -657,7 +2099,7 @@ class BinsOutCard extends HTMLElement {
     return `<div class="cal"><div class="cal-strip">${cells.join("")}</div><div class="legend">${legend}</div></div>`;
   }
 
-  _attachHandlers() {
+  _attachBinHandlers() {
     this.shadowRoot.querySelectorAll(".bin").forEach((el) => {
       const bin = this._bins[Number(el.dataset.idx)];
       if (!bin) return;
@@ -713,9 +2155,8 @@ class BinsOutCard extends HTMLElement {
       window.removeEventListener("keydown", this._menuKeyHandler, true);
       this._menuKeyHandler = null;
     }
-    const cardEl = this.shadowRoot && this.shadowRoot.querySelector("ha-card");
-    if (cardEl) {
-      cardEl.querySelectorAll(".card-menu, .menu-backdrop").forEach((el) => el.remove());
+    if (this.shadowRoot) {
+      this.shadowRoot.querySelectorAll(".card-menu, .menu-backdrop").forEach((el) => el.remove());
     }
     this._menuBin = null;
   }
@@ -724,7 +2165,7 @@ class BinsOutCard extends HTMLElement {
     this._closeMenu();
     this._menuBin = bin;
 
-    const cardEl = this.shadowRoot.querySelector("ha-card");
+    const cardEl = (binEl && binEl.closest("ha-card")) || this.shadowRoot.querySelector("ha-card");
     if (!cardEl) return;
 
     // Backdrop
@@ -931,6 +2372,7 @@ class BinsOutCardEditor extends HTMLElement {
     const title = c.title === undefined ? "Bins" : c.title;
     const days = c.days === undefined ? 14 : c.days;
     const layout = c.layout || "auto";
+    const view = c.view || "card";
     this.shadowRoot.innerHTML = `
       <style>
         .form { display:grid; gap:14px; padding:4px 0; }
@@ -946,6 +2388,11 @@ class BinsOutCardEditor extends HTMLElement {
       <div class="form">
         <label>Entity
           <input type="text" id="entity" value="${esc(c.entity || DEFAULT_ENTITY)}">
+        </label>
+        <label>View
+          <select id="view">
+            ${["card", "page"].map((v) => `<option value="${v}" ${v === view ? "selected" : ""}>${v}</option>`).join("")}
+          </select>
         </label>
         <label>Title
           <input type="text" id="title" value="${esc(title)}">
@@ -963,6 +2410,7 @@ class BinsOutCardEditor extends HTMLElement {
       </div>`;
     const root = this.shadowRoot;
     root.getElementById("entity").addEventListener("change", (e) => this._set("entity", e.target.value.trim()));
+    root.getElementById("view").addEventListener("change", (e) => this._set("view", e.target.value));
     root.getElementById("title").addEventListener("change", (e) => this._set("title", e.target.value));
     root.getElementById("show_calendar").addEventListener("change", (e) => this._set("show_calendar", e.target.checked));
     root.getElementById("days").addEventListener("change", (e) => {
