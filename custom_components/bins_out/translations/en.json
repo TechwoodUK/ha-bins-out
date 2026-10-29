@@ -1,7 +1,7 @@
 {
   "config": {
     "abort": {
-      "single_instance_allowed": "Bins Out is already set up. Use Configure to add more bins."
+      "single_instance_allowed": "Bins Out is already set up. To add more bins, use the ⚙ button on Bins Out in Settings → Devices & services."
     },
     "error": {
       "name_taken": "You already have a bin with this name.",
@@ -30,7 +30,7 @@
       },
       "council_pick": {
         "title": "Your council",
-        "description": "Pick your council from the councils you've added to Waste Collection Schedule.\n\n**Can't see your council?** This list only shows councils already added there. [Add my council]({add_council_url}), then come back to Bins Out → Configure → Add bins from my council.",
+        "description": "Pick your council from the councils you've added to Waste Collection Schedule.\n\n**Can't see your council?** This list only shows councils already added there. [Add my council]({add_council_url}), then come back to Bins Out → ⚙ → Add bins from my council.",
         "data": {
           "calendar_entity": "Your council (from Waste Collection Schedule)"
         }
@@ -53,7 +53,7 @@
       },
       "council_bins": {
         "title": "Your collections",
-        "description": "These collections are on {calendar}. Tick the ones you have; each becomes a bin. Names and colours are a best guess: change them afterwards with Configure, Edit a bin.",
+        "description": "These collections are on {calendar}. Tick the ones you have; each becomes a bin. Names and colours are a best guess: change them afterwards with Bins Out → ⚙ → Edit a bin.",
         "data": {
           "collections": "Collections"
         }
@@ -119,7 +119,7 @@
       "alexa_not_installed": "Alexa Media Player isn't installed yet. Install it from HACS (link above), restart, add it in Settings → Devices & services, then come back.",
       "alexa_no_devices": "Pick at least one Echo device. None listed? Finish setting up Alexa Media Player in Settings → Devices & services.",
       "alexa_test_failed": "The test announcement didn't work. Check Alexa Media Player is signed in (Settings → Devices & services → Alexa Media Player).",
-      "alexa_off": "Switch on Alexa announcements and pick your Echo devices first (Configure → Alexa announcements).",
+      "alexa_off": "Switch on Alexa announcements and pick your Echo devices first (Bins Out → ⚙ → Alexa announcements).",
       "phone_none": "Pick at least one phone. None listed? Install the Home Assistant app on the phone, sign in to this Home Assistant, and allow notifications.",
       "phone_test_failed": "The test notification didn't work. Open the Home Assistant app on the phone, check it's signed in and notifications are allowed, then try again."
     },
@@ -159,7 +159,7 @@
       },
       "council_pick": {
         "title": "Your council",
-        "description": "Pick your council from the councils you've added to Waste Collection Schedule.\n\n**Can't see your council?** This list only shows councils already added there. [Add my council]({add_council_url}), then come back to Bins Out → Configure → Add bins from my council.",
+        "description": "Pick your council from the councils you've added to Waste Collection Schedule.\n\n**Can't see your council?** This list only shows councils already added there. [Add my council]({add_council_url}), then come back to Bins Out → ⚙ → Add bins from my council.",
         "data": {
           "calendar_entity": "Your council (from Waste Collection Schedule)"
         }
@@ -293,7 +293,7 @@
   "issues": {
     "calendar_missing": {
       "title": "Bins Out can't find your council calendar",
-      "description": "The council calendar {calendar} has gone, so these bins can't get new collection dates: {bins}. Until it's fixed they keep their last known dates, which will soon run out.\n\nThis usually means your council was removed from Waste Collection Schedule. To fix it, either:\n\n- add your council to Waste Collection Schedule again (Settings → Devices & services → Add integration → Waste Collection Schedule), then open Bins Out → Configure → Edit a bin and pick the new calendar for each bin; or\n- remove those bins in Bins Out → Configure → Remove a bin.\n\nThis notice goes away by itself once the bins have a calendar again."
+      "description": "The council calendar {calendar} has gone, so these bins can't get new collection dates: {bins}. Until it's fixed they keep their last known dates, which will soon run out.\n\nThis usually means your council was removed from Waste Collection Schedule. To fix it, either:\n\n- add your council to Waste Collection Schedule again (Settings → Devices & services → Add integration → Waste Collection Schedule), then open Bins Out → ⚙ → Edit a bin and pick the new calendar for each bin; or\n- remove those bins in Bins Out → ⚙ → Remove a bin.\n\nThis notice goes away by itself once the bins have a calendar again."
     }
   },
   "selector": {

@@ -44,7 +44,8 @@ Type **Integration** → **Add**. Then search HACS for **Bins Out** → **Downlo
 times, then **From my council** (recommended, see below) or **I'll add my bins myself**.
 When you're done, click **Bins** in the left menu to see your bins.
 
-Add, edit or remove bins later with **Configure** on the integration. Updates appear in
+Add, edit or remove bins later: **Settings → Devices & services → Bins Out**, then the **⚙** button
+next to Bins Out (this page calls it **⚙ settings**). Updates appear in
 Settings → Updates when there's a new version.
 
 ## Quick start: bins from your council
@@ -57,7 +58,7 @@ a free integration that supports hundreds of councils. Set it up once and your d
    Choose your country, type your council's name in the search box, and enter your address details.
    Many UK councils ask for your **UPRN** (your property's reference number):
    find it by searching your address at [findmyaddress.co.uk](https://www.findmyaddress.co.uk).
-3. **Get your bins.** Add Bins Out and choose **From my council** (or later: Bins Out → **Configure** → **Add bins from my council**).
+3. **Get your bins.** Add Bins Out and choose **From my council** (or later: Bins Out → **⚙ settings** → **Add bins from my council**).
    Pick your council, tick your collections, done.
 
 If you skip step 1 or 2, Bins Out tells you what's missing and links to it.
@@ -85,10 +86,10 @@ Example: a UK council
    **postcode** and **UPRN**.
    You can find your UPRN by entering your address at [findmyaddress.co.uk](https://www.findmyaddress.co.uk).
 3. It creates a calendar of your collections.
-4. When you set up Bins Out choose **From my council** (or later: **Configure** →
+4. When you set up Bins Out choose **From my council** (or later: **⚙ settings** →
    **Add bins from my council**), pick that calendar, and tick your collections. Bins Out makes
    one bin per collection and guesses its colour from the name (e.g. "Maroon" → maroon,
-   "Garden Waste" → green). Rename or recolour them with **Configure** → **Edit a bin**.
+   "Garden Waste" → green). Rename or recolour them with **⚙ settings** → **Edit a bin**.
 
 Any council that Waste Collection Schedule supports works the same way: add your council and
 address there, then choose **From my council**. To link a single bin instead, use
@@ -149,13 +150,13 @@ data:
 
 **Alexa:** install [Alexa Media Player](https://github.com/alandtse/alexa_media_player) from HACS,
 restart, add it in Settings → Devices & services and sign in to Amazon (choose `amazon.co.uk` in the UK).
-Then open Bins Out → **Configure** → **Alexa announcements**: switch it on, pick your Echo devices,
+Then open Bins Out → **⚙ settings** → **Alexa announcements**: switch it on, pick your Echo devices,
 choose *Announce* (chime first) or *Just speak* and which reminders to say, and tick
 **Send a test announcement** to check it works. On an Echo Show the words also appear on screen.
 Switch it off again any time from the same screen.
 
 **Phone notifications:** install the free [Home Assistant app](https://companion.home-assistant.io/)
-on your phone and sign in to your Home Assistant. Then Bins Out → **Configure** → **Phone
+on your phone and sign in to your Home Assistant. Then Bins Out → **⚙ settings** → **Phone
 notifications**: switch it on, pick your phones and which reminders, and tick **Send a test
 notification**. Reminders pop up, vibrate and ask **Have you put it out?** Tap **Yes** to mark the
 bins as out, or **Not yet** to be asked again an hour later (until 22:00 the night before, or until
@@ -163,7 +164,7 @@ collection time in the morning). Tap the notification to open the Bins page. Tic
 that are at home** to skip anyone who's out (if everyone's out, everyone is reminded). On an
 iPhone, allow *Time Sensitive* notifications for the app so they come through in a Focus.
 
-**Your own wording:** Bins Out → **Configure** → **Reminder messages**. Write what each reminder
+**Your own wording:** Bins Out → **⚙ settings** → **Reminder messages**. Write what each reminder
 should say; `{bins}` is replaced by the bins' names (e.g. *the blue bin and the grey food caddy*)
 and `{was}` by *was* or *were*. Tick **Say the evening message on Alexa** to hear it. Clear a box
 to go back to the standard wording. Your wording is used on Alexa and in the `bins_out_reminder` event.
