@@ -451,6 +451,13 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
                     services.append(service)
         return services
 
+    def _is_iphone(self, service: str) -> bool:
+        """Whether a phone's notify service is an iPhone (pictures work differently there)."""
+        for entry in self.hass.config_entries.async_entries(MOBILE_APP_DOMAIN):
+            if slugify(f"{MOBILE_APP_DOMAIN}_{entry.data.get('device_name', '')}") == service:
+                return entry.data.get("os_name") == "iOS"
+        return False
+
     def phone_is_away(self, device_id: str) -> bool:
         """True if the phone's location says it's somewhere other than home."""
         for entity in er.async_entries_for_device(er.async_get(self.hass), device_id):
@@ -511,8 +518,6 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             # iPhone: sound and vibration, even in a Focus that allows time-sensitive alerts.
             "push": {"sound": "default", "interruption-level": "time-sensitive"},
         }
-        if bin_ids and (picture := self.picture_url(bin_ids)):
-            data["image"] = picture  # the bins, drawn as on the Bins page
         if (preview or kind in (REMINDER_EVENING, REMINDER_MORNING)) and bin_ids:
             title = "Have you put it out?" if len(bin_ids) == 1 else "Have you put them out?"
             # A preview looks like a real reminder, but its buttons only close it.
@@ -525,13 +530,20 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
                 {"action": yes, "title": "Yes"},
                 {"action": not_yet, "title": "Not yet"},
             ]
+        picture = self.picture_url(bin_ids) if bin_ids else None
         ok = True
         for service in services:
+            phone_data = dict(data)
+            if picture and self._is_iphone(service):
+                phone_data["image"] = picture
+            elif picture:
+                # Android: a small square picture, so the Yes / Not yet buttons stay in view.
+                phone_data["icon_url"] = f"{picture}?shape=square"
             try:
                 await self.hass.services.async_call(
                     "notify",
                     service,
-                    {"title": title, "message": message, "data": data},
+                    {"title": title, "message": message, "data": phone_data},
                     blocking=True,
                 )
             except HomeAssistantError as err:

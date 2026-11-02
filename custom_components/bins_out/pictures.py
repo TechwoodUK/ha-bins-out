@@ -41,8 +41,12 @@ def parse_picture_name(name: str) -> list[str] | None:
 
 
 @lru_cache(maxsize=32)
-def compose(parts: tuple[str, ...]) -> bytes:
-    """The bins side by side on a transparent 2:1 canvas (what Android's big picture shows)."""
+def compose(parts: tuple[str, ...], square: bool = False) -> bytes:
+    """The bins standing side by side on a transparent canvas.
+
+    2:1 for Android's big picture. Square for a small notification picture: the bins
+    then overlap a little, so they stay big enough to recognise.
+    """
     from PIL import Image  # noqa: PLC0415  (only when a picture is asked for)
 
     images = []
@@ -50,15 +54,21 @@ def compose(parts: tuple[str, ...]) -> bytes:
         image = Image.open(PICTURES / f"{part}.png").convert("RGBA")
         # Trim the empty space around the drawing (a caddy has a lot below it).
         images.append(image.crop(image.getbbox() or (0, 0, image.width, image.height)))
-    row_w = sum(i.width for i in images) + GAP * (len(images) - 1)
+    gap = -min(i.width for i in images) // 4 if square else GAP
+    padding = PADDING // 3 if square else PADDING
+    row_w = sum(i.width for i in images) + gap * (len(images) - 1)
     row_h = max(i.height for i in images)
-    width = max(row_w + 2 * PADDING, 2 * (row_h + 2 * PADDING))
-    canvas = Image.new("RGBA", (width, width // 2), (0, 0, 0, 0))
+    if square:
+        width = height = max(row_w, row_h) + 2 * padding
+    else:
+        width = max(row_w + 2 * padding, 2 * (row_h + 2 * padding))
+        height = width // 2
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     x = (width - row_w) // 2
-    ground = (canvas.height + row_h) // 2  # bins stand on the same line, like at the kerb
+    ground = (height + row_h) // 2  # bins stand on the same line, like at the kerb
     for image in images:
         canvas.alpha_composite(image, (x, ground - image.height))
-        x += image.width + GAP
+        x += image.width + gap
     out = BytesIO()
     canvas.save(out, format="PNG", optimize=True)
     return out.getvalue()
@@ -79,7 +89,8 @@ class BinsOutPictureView(HomeAssistantView):
         parts = parse_picture_name(name)
         if parts is None:
             return web.Response(status=404)
-        body = await request.app[KEY_HASS].async_add_executor_job(compose, tuple(parts))
+        square = request.query.get("shape") == "square"
+        body = await request.app[KEY_HASS].async_add_executor_job(compose, tuple(parts), square)
         return web.Response(
             body=body, content_type="image/png", headers={"Cache-Control": "public, max-age=86400"}
         )

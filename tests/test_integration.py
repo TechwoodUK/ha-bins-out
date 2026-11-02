@@ -990,7 +990,7 @@ async def test_phone_notifications(
     hass: HomeAssistant, entry: MockConfigEntry, freezer: FrozenDateTimeFactory
 ) -> None:
     # A phone with the Home Assistant app.
-    phone_entry = MockConfigEntry(domain="mobile_app", data={"device_name": "Ste's iPhone"})
+    phone_entry = MockConfigEntry(domain="mobile_app", data={"device_name": "Ste's iPhone", "os_name": "iOS"})
     phone_entry.add_to_hass(hass)
     phone = dr.async_get(hass).async_get_or_create(
         config_entry_id=phone_entry.entry_id, identifiers={("mobile_app", "iphone")}, name="Ste's iPhone"
@@ -1016,7 +1016,7 @@ async def test_phone_notifications(
     assert calls[0].data["message"].startswith("This is Bins Out")
     # The test looks like a real reminder: picture of your bins, Yes / Not yet ...
     assert calls[0].data["title"] == "Have you put them out?"
-    assert calls[0].data["data"]["image"].startswith("/api/bins_out/picture/")
+    assert calls[0].data["data"]["image"].startswith("/api/bins_out/picture/")  # iPhone
     preview = calls[0].data["data"]["actions"]
     assert [b["title"] for b in preview] == ["Yes", "Not yet"]
     # ... but its buttons don't mark anything out.
@@ -1128,9 +1128,9 @@ async def test_not_yet_stops_once_its_out(
     assert len(calls) == 1
 
 
-def _phone(hass: HomeAssistant, name: str, ident: str):
+def _phone(hass: HomeAssistant, name: str, ident: str, os_name: str = "iOS"):
     """A phone with the Home Assistant app, and its location tracker."""
-    phone_entry = MockConfigEntry(domain="mobile_app", data={"device_name": name})
+    phone_entry = MockConfigEntry(domain="mobile_app", data={"device_name": name, "os_name": os_name})
     phone_entry.add_to_hass(hass)
     device = dr.async_get(hass).async_get_or_create(
         config_entry_id=phone_entry.entry_id, identifiers={("mobile_app", ident)}, name=name
@@ -1189,3 +1189,23 @@ async def test_changes_kept_when_settings_change_straight_after(
     await hass.async_block_till_done()
     assert hass.states.get("switch.recycling_put_out").state == "on"
     assert hass.states.get("sensor.general_next_collection").state == "2026-11-04"
+
+
+async def test_android_gets_a_small_picture(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    """Android: a small square picture, so the Yes / Not yet buttons stay in view."""
+    phone = _phone(hass, "Galaxy", "galaxy", os_name="Android")
+    calls = async_mock_service(hass, "notify", "mobile_app_galaxy")
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "phone_enabled": True, "phone_devices": [phone.id]}
+    )
+    await hass.async_block_till_done()
+    freezer.move_to(local(2026, 10, 26, 19, 0, 0))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    data = calls[0].data["data"]
+    assert "image" not in data
+    assert data["icon_url"].startswith("/api/bins_out/picture/")
+    assert data["icon_url"].endswith(".png?shape=square")
+    assert [b["title"] for b in data["actions"]] == ["Yes", "Not yet"]

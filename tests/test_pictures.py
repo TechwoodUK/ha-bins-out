@@ -47,6 +47,8 @@ def test_compose_puts_bins_side_by_side():
         assert image.width == 2 * image.height  # what Android's big picture shows
         assert image.getpixel((0, 0))[3] == 0  # transparent background
     assert three.width > one.width
+    square = Image.open(BytesIO(compose(("wheelie_bin-blue", "food_caddy-grey"), True)))
+    assert square.width == square.height
 
 
 async def test_picture_served_without_login(hass: HomeAssistant, hass_client_no_auth) -> None:
@@ -56,6 +58,9 @@ async def test_picture_served_without_login(hass: HomeAssistant, hass_client_no_
     assert resp.status == 200
     assert resp.content_type == "image/png"
     assert Image.open(BytesIO(await resp.read())).width > 0
+    resp = await client.get("/api/bins_out/picture/wheelie_bin-blue.png?shape=square")
+    image = Image.open(BytesIO(await resp.read()))
+    assert image.width == image.height
     for bad in ("wheelie_bin-tartan.png", "..%2Fconst.py", "nothing"):
         # Refused by Bins Out (404), or by Home Assistant before it gets that far (400).
         assert (await client.get(f"/api/bins_out/picture/{bad}")).status in (400, 404)
