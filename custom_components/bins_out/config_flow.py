@@ -78,7 +78,7 @@ ALEXA_LINKS = {
 }
 CONF_ALEXA_TEST = "alexa_test"  # not saved: send a test announcement on save
 CONF_PHONE_TEST = "phone_test"  # not saved: send a test notification on save
-PHONE_TEST_MESSAGE = "This is Bins Out. Your bin reminders will pop up here."
+PHONE_TEST_MESSAGE = "This is Bins Out. Your bin reminders will look like this. (In this test the buttons do nothing.)"
 CONF_MESSAGE_TRY = "message_try"  # not saved: say the evening reminder on Alexa on save
 ALEXA_TEST_MESSAGE = "This is Bins Out. Your bin reminders will be announced here."
 
@@ -680,7 +680,7 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
         services = coordinator.phone_services(settings.get(CONF_PHONE_DEVICES) or [])
         # With a picture of your bins, so you can see how reminders will look.
         return bool(services) and await coordinator.async_notify_phones(
-            PHONE_TEST_MESSAGE, services, bin_ids=list(coordinator.bins)
+            PHONE_TEST_MESSAGE, services, bin_ids=list(coordinator.bins), preview=True
         )
 
     async def async_step_alexa_save(self, user_input: Any = None) -> ConfigFlowResult:

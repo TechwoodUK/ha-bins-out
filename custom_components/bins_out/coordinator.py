@@ -60,6 +60,7 @@ from .const import (
     NOT_YET_UNTIL_EVENING,
     PANEL_ICON,
     PANEL_URL_PATH,
+    PREVIEW_ACTION,
     PUT_OUT_ACTION,
     REMINDER_EVENING,
     REMINDER_FORGOTTEN,
@@ -488,6 +489,7 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
         services: list[str],
         kind: str | None = None,
         bin_ids: list[str] | None = None,
+        preview: bool = False,
     ) -> bool:
         """Send `message` to these phones.
 
@@ -511,12 +513,17 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
         }
         if bin_ids and (picture := self.picture_url(bin_ids)):
             data["image"] = picture  # the bins, drawn as on the Bins page
-        if kind in (REMINDER_EVENING, REMINDER_MORNING) and bin_ids:
-            ids = ",".join(bin_ids)
+        if (preview or kind in (REMINDER_EVENING, REMINDER_MORNING)) and bin_ids:
             title = "Have you put it out?" if len(bin_ids) == 1 else "Have you put them out?"
+            # A preview looks like a real reminder, but its buttons only close it.
+            yes, not_yet = (
+                (PREVIEW_ACTION, PREVIEW_ACTION)
+                if preview
+                else (f"{PUT_OUT_ACTION}:{','.join(bin_ids)}", f"{NOT_YET_ACTION}:{kind}")
+            )
             data["actions"] = [
-                {"action": f"{PUT_OUT_ACTION}:{ids}", "title": "Yes"},
-                {"action": f"{NOT_YET_ACTION}:{kind}", "title": "Not yet"},
+                {"action": yes, "title": "Yes"},
+                {"action": not_yet, "title": "Not yet"},
             ]
         ok = True
         for service in services:

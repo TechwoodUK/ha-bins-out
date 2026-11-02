@@ -62,6 +62,8 @@ CONF_PHONE_HOME_ONLY = "phone_home_only"  # skip phones that are away from home
 # The notification's buttons. Yes: "BINS_OUT_PUT_OUT:<bin ids>". Not yet: "BINS_OUT_NOT_YET:<reminder>".
 PUT_OUT_ACTION = "BINS_OUT_PUT_OUT"
 NOT_YET_ACTION = "BINS_OUT_NOT_YET"
+# The test notification's buttons: they do nothing.
+PREVIEW_ACTION = "BINS_OUT_PREVIEW"
 # Not yet: ask again this much later, but not after bedtime (evening) or collection time (morning).
 NOT_YET_DELAY = timedelta(hours=1)
 NOT_YET_UNTIL_EVENING = time(22, 0)

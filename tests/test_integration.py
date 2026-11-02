@@ -1014,9 +1014,16 @@ async def test_phone_notifications(
     )
     assert len(calls) == 1
     assert calls[0].data["message"].startswith("This is Bins Out")
-    assert "actions" not in calls[0].data["data"]
-    # The test shows a picture of your bins.
+    # The test looks like a real reminder: picture of your bins, Yes / Not yet ...
+    assert calls[0].data["title"] == "Have you put them out?"
     assert calls[0].data["data"]["image"].startswith("/api/bins_out/picture/")
+    preview = calls[0].data["data"]["actions"]
+    assert [b["title"] for b in preview] == ["Yes", "Not yet"]
+    # ... but its buttons don't mark anything out.
+    for button in preview:
+        hass.bus.async_fire("mobile_app_notification_action", {"action": button["action"]})
+    await hass.async_block_till_done()
+    assert hass.states.get("switch.recycling_put_out").state == "off"
     # Asks if it popped up; you can send it again as often as you like.
     assert result["step_id"] == "phones_tested"
     for sent in (2, 3):
