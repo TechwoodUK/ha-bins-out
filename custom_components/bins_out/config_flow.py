@@ -678,8 +678,9 @@ class BinsOutOptionsFlow(BinStepsMixin, OptionsFlow):
     async def _async_phone_test(self, settings: dict[str, Any]) -> bool:
         coordinator = self.config_entry.runtime_data
         services = coordinator.phone_services(settings.get(CONF_PHONE_DEVICES) or [])
+        # With a picture of your bins, so you can see how reminders will look.
         return bool(services) and await coordinator.async_notify_phones(
-            PHONE_TEST_MESSAGE, services
+            PHONE_TEST_MESSAGE, services, bin_ids=list(coordinator.bins)
         )
 
     async def async_step_alexa_save(self, user_input: Any = None) -> ConfigFlowResult:

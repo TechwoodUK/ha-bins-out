@@ -158,7 +158,7 @@ Switch it off again any time from the same screen.
 **Phone notifications:** install the free [Home Assistant app](https://companion.home-assistant.io/)
 on your phone and sign in to your Home Assistant. Then Bins Out → **⚙ settings** → **Phone
 notifications**: switch it on, pick your phones and which reminders, and tick **Send a test
-notification**. Reminders pop up, vibrate and ask **Have you put it out?** Tap **Yes** to mark the
+notification**. Reminders pop up with a picture of the bins, vibrate and ask **Have you put it out?** Tap **Yes** to mark the
 bins as out, or **Not yet** to be asked again an hour later (until 22:00 the night before, or until
 collection time in the morning). Tap the notification to open the Bins page. Tick **Only phones
 that are at home** to skip anyone who's out (if everyone's out, everyone is reminded). On an

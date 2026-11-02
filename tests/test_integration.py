@@ -26,6 +26,7 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
 from custom_components.bins_out.const import DOMAIN, EVENT_REMINDER
+from custom_components.bins_out.pictures import parse_picture_name
 
 OPTIONS = {
     "evening_time": "19:00:00",
@@ -1014,6 +1015,8 @@ async def test_phone_notifications(
     assert len(calls) == 1
     assert calls[0].data["message"].startswith("This is Bins Out")
     assert "actions" not in calls[0].data["data"]
+    # The test shows a picture of your bins.
+    assert calls[0].data["data"]["image"].startswith("/api/bins_out/picture/")
     # Asks if it popped up; you can send it again as often as you like.
     assert result["step_id"] == "phones_tested"
     for sent in (2, 3):
@@ -1049,6 +1052,11 @@ async def test_phone_notifications(
     assert sent["data"]["vibrationPattern"]
     assert sent["data"]["push"]["interruption-level"] == "time-sensitive"
     assert sent["data"]["url"] == "/bins-out"
+    # A picture of the bin going out (Recycling is a blue bin).
+    image = sent["data"]["image"]
+    assert image.startswith("/api/bins_out/picture/")
+    [drawing] = parse_picture_name(image.rsplit("/", 1)[1])
+    assert drawing.endswith("-blue")
     yes, not_yet = sent["data"]["actions"]
     assert yes == {"action": "BINS_OUT_PUT_OUT:rec", "title": "Yes"}
     assert not_yet == {"action": "BINS_OUT_NOT_YET:evening", "title": "Not yet"}

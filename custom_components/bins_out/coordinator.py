@@ -69,6 +69,7 @@ from .const import (
     STORAGE_VERSION,
     UPCOMING_COUNT,
 )
+from .pictures import PICTURE_URL, picture_name
 from .schedule import (
     BinSchedule,
     BinState,
@@ -508,6 +509,8 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
             # iPhone: sound and vibration, even in a Focus that allows time-sensitive alerts.
             "push": {"sound": "default", "interruption-level": "time-sensitive"},
         }
+        if bin_ids and (picture := self.picture_url(bin_ids)):
+            data["image"] = picture  # the bins, drawn as on the Bins page
         if kind in (REMINDER_EVENING, REMINDER_MORNING) and bin_ids:
             ids = ",".join(bin_ids)
             title = "Have you put it out?" if len(bin_ids) == 1 else "Have you put them out?"
@@ -528,6 +531,17 @@ class BinsOutCoordinator(DataUpdateCoordinator[dict[str, BinState]]):
                 _LOGGER.warning("Couldn't send the reminder to %s: %s", service, err)
                 ok = False
         return ok
+
+    def picture_url(self, bin_ids: list[str]) -> str | None:
+        """Where the phone fetches a picture of these bins, e.g. for a notification."""
+        name = picture_name(
+            [
+                (self.container(b), self.bins[b].get(CONF_BIN_COLOUR, ""))
+                for b in bin_ids
+                if b in self.bins
+            ]
+        )
+        return f"{PICTURE_URL}/{name}" if name else None
 
     @callback
     def async_phone_action(self, action: str) -> None:

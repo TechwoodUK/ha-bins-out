@@ -49,6 +49,7 @@ from .coordinator import (
     calendar_issue_prefix,
     storage_key,
 )
+from .pictures import BinsOutPictureView
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,6 +118,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, SERVICE_RESTORE_COLLECTION, restore_collection, DATE_SCHEMA
     )
 
+    # Bin pictures for phone notifications.
+    hass.http.register_view(BinsOutPictureView())
     await _serve_frontend(hass)
     return True
 
